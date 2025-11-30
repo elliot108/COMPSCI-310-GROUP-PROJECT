@@ -12,10 +12,10 @@ app.use(express.json());
 
 // Database connection configuration
 const dbConfig = {
-    host: 'your host',
-    port: yourport,
-    user: 'your username', // Update with your MySQL username
-    password: 'your password', // Update with your MySQL password
+    host: 'localhost',
+    port: 3306,
+    user: 'root', // Update with your MySQL username
+    password: 'Yrycs584!', // Update with your MySQL password
     database: 'dku_event_system'
 };
 
