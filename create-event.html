@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Event</title>
+    <style>
+        .dynamic-field {
+            margin: 10px 0;
+            transition: all 0.3s ease;
+        }
+        .hidden {
+            display: none;
+        }
+        .collaborator-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 5px;
+        }
+        .category-option {
+            margin-right: 10px;
+            display: inline-block;
+        }
+        button {
+            margin: 5px;
+            padding: 8px 16px;
+            cursor: pointer;
+        }
+        label {
+            display: block;
+            margin: 10px 0;
+        }
+        input, select, textarea {
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Create Event</h1>
+    <form id="createEventForm">
+        <label>Title: <input type="text" name="title" required></label>
+        
+        <label>Description: <textarea name="description" required></textarea></label>
+        
+        <label>Perks: <input type="text" name="perks"></label>
+        
+        <label>Max Participants: <input type="number" name="max_participants" required></label>
+        
+        <label>Application Required: 
+            <select name="application_required" id="applicationRequired">
+                <option value="0">No</option>
+                <option value="1">Yes</option>
+            </select>
+        </label>
+        
+        <!-- Application Link - Hidden by default -->
+        <div id="applicationFields" class="dynamic-field hidden">
+            <label>Application Link: <input type="url" name="application_link"></label>
+            <label>Application Deadline: <input type="date" name="application_deadline"></label>
+        </div>
+        
+        <label>Flyer URL: <input type="url" name="flyer_url" placeholder="Enter image URL"></label>
+        
+        <label>Event Type: 
+            <select name="event_type" id="eventType">
+                <option value="on_campus">On Campus</option>
+                <option value="off_campus">Off Campus</option>
+                <option value="online">Online</option>
+            </select>
+        </label>
+        
+        <!-- Online Link - Hidden by default -->
+        <div id="onlineLinkField" class="dynamic-field hidden">
+            <label>Online Link: <input type="url" name="online_link"></label>
+        </div>
+        
+        <!-- Location fields - Hidden for online events -->
+        <div id="locationFields">
+            <label>Building: <input type="text" name="building"></label>
+            <label>Label/Room: <input type="text" name="label"></label>
+        </div>
+        
+        <label>Start Date: <input type="date" name="start_date" required></label>
+        <label>End Date: <input type="date" name="end_date" required></label>
+        <label>Start Time: <input type="time" name="start_time" required></label>
+        <label>End Time: <input type="time" name="end_time" required></label>
+        
+        <label>Main Organizer ID: <input type="number" name="organizer_id" required></label>
+        
+        <label>Add Collaborating Organizers?
+            <select id="addCollaborators">
+                <option value="no">No</option>
+                <option value="yes">Yes</option>
+            </select>
+        </label>
+        
+        <!-- Collaborators Container -->
+        <div id="collaboratorsContainer" class="dynamic-field hidden">
+            <h3>Collaborating Organizers</h3>
+            <div id="collaboratorRows">
+                <!-- Rows will be added here -->
+            </div>
+            <button type="button" id="addCollaboratorBtn">+ Add Another Organizer</button>
+        </div>
+        
+        <!-- Categories Selection -->
+        <div id="categoriesContainer">
+            <h3>Select Categories</h3>
+            <div id="categoriesList">
+                <!-- Categories will be loaded here -->
+            </div>
+        </div>
+        
+        <!-- Hidden fields to store JSON data -->
+        <input type="hidden" name="collaborating_organizers" id="collaboratingOrganizersJson">
+        <input type="hidden" name="category_ids" id="categoryIdsJson">
+        
+        <button type="submit">Create Event</button>
+    </form>
+
+    <script src="create-event.js"></script>
+</body>
+</html>
