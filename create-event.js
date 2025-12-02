@@ -218,6 +218,7 @@ function getCategoriesJson() {
 
 async function handleFormSubmit(e) {
     e.preventDefault();
+    data.cost = data.cost === '' ? 0 : parseInt(data.cost);
     
     // Update JSON hidden fields
     document.getElementById('collaboratingOrganizersJson').value = getCollaboratorsJson();
@@ -451,6 +452,9 @@ function resetForm() {
     const applicationRequired = document.getElementById('applicationRequired');
     const eventType = document.getElementById('eventType');
     const addCollaborators = document.getElementById('addCollaborators');
+    
+    const costField = document.querySelector('[name="cost"]');
+    if (costField) costField.value = 0;
     
     if (applicationRequired) applicationRequired.value = '0';
     if (eventType) {

@@ -379,9 +379,12 @@ app.post('/api/events', async (req, res) => {
         const {
             title, description, perks, max_participants, application_required,
             application_link, application_deadline, flyer_url, event_type, online_link,
-            building, label, start_date, end_date, start_time, end_time,
+            building, label, start_date, end_date, start_time, end_time, cost,
             organizer_id, collaborating_organizers, category_ids
         } = req.body;
+
+        const finalMaxParticipants = max_participants === '' ? null : parseInt(max_participants);
+        const finalCost = cost === '' ? 0 : parseInt(cost);  // Default to 0 if empty
 
         // IMPORTANT: Prepare ALL 19 parameters in EXACT order the procedure expects
         // Based on your procedure definition: uploadEvent(
@@ -408,7 +411,8 @@ app.post('/api/events', async (req, res) => {
             start_date,                     // 13. newStartDate (DATE)
             end_date,                       // 14. newEndDate (DATE)
             start_time,                     // 15. newStartTime (TIME)
-            end_time,                       // 16. newEndTime (TIME)
+            end_time,   
+            finalCost,                    // 16. newEndTime (TIME)
             parseInt(organizer_id) || 0,    // 17. organizer_id_param (INT)
             // JSON parameters - MUST be properly stringified
             JSON.stringify(collaborating_organizers || []), // 18. collaborating_organizers (JSON)
@@ -425,7 +429,7 @@ app.post('/api/events', async (req, res) => {
         
         try {
             // Call the stored procedure with ALL 19 parameters
-            const sql = `CALL uploadEvent(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @newEvent_id)`;
+            const sql = `CALL uploadEvent(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @newEvent_id)`;
             console.log('📝 SQL:', sql);
             console.log('📦 Params count:', procedureParams.length);
             
