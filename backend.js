@@ -4,6 +4,8 @@
 const mysql = require('mysql2/promise');
 const express = require('express');
 const cors = require('cors');
+const fs = require('fs').promises;
+const path = require('path');
 const app = express();
 
 // Middleware
