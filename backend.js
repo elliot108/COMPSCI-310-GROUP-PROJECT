@@ -470,3 +470,63 @@ app.post('/api/events', async (req, res) => {
         });
     }
 });
+
+// Debug: Test if procedure exists
+app.get('/api/test-procedure', async (req, res) => {
+    try {
+        const connection = await pool.getConnection();
+        
+        // Try to call the procedure
+        await connection.query('CALL validateOrganizer(1)');
+        
+        connection.release();
+        res.json({ success: true, message: 'Procedure exists and works' });
+        
+    } catch (error) {
+        console.error('Procedure test failed:', error.message);
+        res.status(500).json({ 
+            success: false, 
+            message: error.message,
+            sqlMessage: error.sqlMessage 
+        });
+    }
+});
+// Get all buildings
+app.get('/api/buildings', async (req, res) => {
+    try {
+        const connection = await pool.getConnection();
+        const [rows] = await connection.query(`
+            SELECT 
+                building,
+                COUNT(*) as label_count,
+                MAX(capacity) as max_capacity,
+                GROUP_CONCAT(label ORDER BY label SEPARATOR ', ') as all_labels
+            FROM Locations 
+            GROUP BY building 
+            ORDER BY building
+        `);
+        connection.release();
+        res.json(rows);
+    } catch (error) {
+        console.error('Error fetching buildings:', error);
+        res.status(500).json({ error: 'Failed to fetch buildings' });
+    }
+});
+
+
+// Get labels for a specific building
+app.get('/api/buildings/:building/labels', async (req, res) => {
+    try {
+        const building = decodeURIComponent(req.params.building);
+        const connection = await pool.getConnection();
+        const [rows] = await connection.query(
+            'SELECT location_id, label, capacity FROM Locations WHERE building = ? ORDER BY label',
+            [building]
+        );
+        connection.release();
+        res.json(rows);
+    } catch (error) {
+        console.error('Error fetching labels:', error);
+        res.status(500).json({ error: 'Failed to fetch labels' });
+    }
+});

@@ -5,34 +5,216 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Create Event</title>
     <style>
+        /* Horizontal layout for buildings and labels */
+        #buildingsList, #labelsList, #categoriesList {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin: 15px 0;
+        }
+        
         .dynamic-field {
-            margin: 10px 0;
+            margin: 25px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #3498db;
             transition: all 0.3s ease;
         }
+        
         .hidden {
             display: none;
         }
+        
         .collaborator-row {
             display: flex;
             align-items: center;
             gap: 10px;
-            margin-bottom: 5px;
+            margin-bottom: 10px;
+            padding: 10px;
+            background: white;
+            border-radius: 6px;
+            border: 1px solid #e9ecef;
         }
-        .category-option {
-            margin-right: 10px;
-            display: inline-block;
-        }
-        button {
-            margin: 5px;
-            padding: 8px 16px;
+        
+        .category-option,
+        .building-option,
+        .label-option {
+            flex: 1;
+            min-width: 200px;
+            max-width: 300px;
+            margin: 0;
+            padding: 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
             cursor: pointer;
+            transition: all 0.2s;
+            background: white;
+            box-sizing: border-box;
         }
+        
+        .category-option:hover,
+        .building-option:hover,
+        .label-option:hover {
+            background: #f8f9fa;
+            border-color: #3498db;
+            transform: translateY(-2px);
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .category-option input[type="checkbox"],
+        .building-option input[type="radio"],
+        .label-option input[type="radio"] {
+            margin-right: 12px;
+            transform: scale(1.2);
+        }
+        
+        .category-option label,
+        .building-option label,
+        .label-option label {
+            cursor: pointer;
+            display: inline-block;
+            width: calc(100% - 35px);
+            margin: 0;
+            font-weight: normal;
+        }
+        
+        .building-option strong {
+            color: #2c3e50;
+            font-size: 16px;
+        }
+        
+        .building-option small,
+        .label-option small {
+            color: #7f8c8d;
+            font-size: 14px;
+            display: block;
+            margin-top: 5px;
+        }
+        
+        button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s;
+            margin: 10px 5px;
+        }
+        
+        button:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+        }
+        
+        button[type="button"] {
+            background: #2ecc71;
+        }
+        
+        button[type="button"]:hover {
+            background: #27ae60;
+        }
+        
+        button[type="submit"] {
+            background: #9b59b6;
+            width: 100%;
+            margin-top: 30px;
+            padding: 16px;
+            font-size: 18px;
+        }
+        
+        button[type="submit"]:hover {
+            background: #8e44ad;
+        }
+        
+        /* For smaller screens, stack vertically */
+        @media (max-width: 768px) {
+            #buildingsList, #labelsList, #categoriesList {
+                flex-direction: column;
+            }
+            
+            .category-option,
+            .building-option,
+            .label-option {
+                min-width: 100%;
+            }
+        }
+        
         label {
             display: block;
-            margin: 10px 0;
+            margin: 20px 0 8px;
+            font-weight: 600;
+            color: #2c3e50;
         }
-        input, select, textarea {
+        
+        input[type="text"],
+        input[type="number"],
+        input[type="url"],
+        input[type="date"],
+        input[type="time"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+            box-sizing: border-box;
             margin-top: 5px;
+        }
+        
+        input[type="text"]:focus,
+        input[type="number"]:focus,
+        input[type="url"]:focus,
+        input[type="date"]:focus,
+        input[type="time"]:focus,
+        select:focus,
+        textarea:focus {
+            border-color: #3498db;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+        }
+        
+        textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+        
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+            margin-bottom: 30px;
+        }
+        
+        h3 {
+            color: #34495e;
+            margin-top: 25px;
+            margin-bottom: 15px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #ecf0f1;
+        }
+        
+        form {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 15px rgba(0, 0, 0, 0.1);
         }
     </style>
 </head>
@@ -45,7 +227,7 @@
         
         <label>Perks: <input type="text" name="perks"></label>
         
-        <label>Max Participants: <input type="number" name="max_participants" required></label>
+        <label>Max Participants: <input type="number" name="max_participants"></label>
         
         <label>Application Required: 
             <select name="application_required" id="applicationRequired">
@@ -70,23 +252,43 @@
             </select>
         </label>
         
-        <!-- Online Link - Hidden by default -->
+        <!-- Online Link - Hidden by default (ADDED THIS BACK!) -->
         <div id="onlineLinkField" class="dynamic-field hidden">
             <label>Online Link: <input type="url" name="online_link"></label>
         </div>
         
-        <!-- Location fields - Hidden for online events -->
-        <div id="locationFields">
-            <label>Building: <input type="text" name="building"></label>
-            <label>Label/Room: <input type="text" name="label"></label>
+        <!-- Building Selection - Hidden by default -->
+        <div id="buildingSelection" class="dynamic-field hidden">
+            <h3>Select Building</h3>
+            <div id="buildingsList">
+                <!-- Buildings will be loaded here as radio buttons -->
+                <p>Loading buildings...</p>
+            </div>
         </div>
+        
+        <!-- Label Selection (Appears after building is selected) -->
+        <div id="labelSelection" class="dynamic-field hidden">
+            <h3>Select Room/Label</h3>
+            <div id="labelsList">
+                <!-- Labels will be loaded here as radio buttons -->
+                <p>Please select a building first</p>
+            </div>
+        </div>
+        
+        <!-- Hidden fields to store selections -->
+        <input type="hidden" id="selectedBuilding" name="building">
+        <input type="hidden" id="selectedLabel" name="label">
         
         <label>Start Date: <input type="date" name="start_date" required></label>
         <label>End Date: <input type="date" name="end_date" required></label>
         <label>Start Time: <input type="time" name="start_time" required></label>
         <label>End Time: <input type="time" name="end_time" required></label>
         
-        <label>Main Organizer ID: <input type="number" name="organizer_id" required></label>
+        <!-- REMOVE THIS LINE - Organizer ID will come from login -->
+        <!-- <label>Main Organizer ID: <input type="number" name="organizer_id" required></label> -->
+        
+        <!-- Add hidden field for organizer ID instead -->
+        <input type="hidden" id="currentOrganizerId" name="organizer_id" value="1">
         
         <label>Add Collaborating Organizers?
             <select id="addCollaborators">
@@ -109,6 +311,7 @@
             <h3>Select Categories</h3>
             <div id="categoriesList">
                 <!-- Categories will be loaded here -->
+                <p>Loading categories...</p>
             </div>
         </div>
         
@@ -118,6 +321,89 @@
         
         <button type="submit">Create Event</button>
     </form>
+
+
+<!-- Add this right after the form closing tag -->
+<div style="text-align: center; margin-top: 30px;">
+    <button onclick="goToHomePage()" 
+            style="background: #7f8c8d; color: white; padding: 12px 24px; 
+                   border: none; border-radius: 6px; cursor: pointer; 
+                   font-size: 16px; margin: 10px;">
+        ← Back to Home Page
+    </button>
+    
+    <button onclick="resetForm()" 
+            style="background: #2ecc71; color: white; padding: 12px 24px; 
+                   border: none; border-radius: 6px; cursor: pointer; 
+                   font-size: 16px; margin: 10px;">
+        🗑️ Clear Form & Create Another
+    </button>
+</div>
+
+<script>
+function goToHomePage() {
+    // Use replace() instead of href to prevent form resubmission on back button
+    window.location.replace('index.html'); // Change to your actual home page
+}
+
+// Make resetForm available globally
+window.resetForm = function() {
+    // Your existing resetForm function code
+    const form = document.getElementById('createEventForm');
+    if (!form) return;
+    
+    form.reset();
+    
+    // Reset dynamic fields visibility
+    const elementsToHide = [
+        'applicationFields',
+        'onlineLinkField',
+        'buildingSelection',
+        'labelSelection',
+        'collaboratorsContainer'
+    ];
+    
+    elementsToHide.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) element.classList.add('hidden');
+    });
+    
+    // Clear building/label selections
+    const selectedBuilding = document.getElementById('selectedBuilding');
+    const selectedLabel = document.getElementById('selectedLabel');
+    if (selectedBuilding) selectedBuilding.value = '';
+    if (selectedLabel) selectedLabel.value = '';
+    
+    // Clear collaborator rows
+    const collaboratorRows = document.getElementById('collaboratorRows');
+    if (collaboratorRows) collaboratorRows.innerHTML = '';
+    
+    // Reset select boxes to defaults
+    const applicationRequired = document.getElementById('applicationRequired');
+    const eventType = document.getElementById('eventType');
+    const addCollaborators = document.getElementById('addCollaborators');
+    
+    if (applicationRequired) applicationRequired.value = '0';
+    if (eventType) {
+        eventType.value = 'on_campus';
+        // Trigger change event to show building selection
+        eventType.dispatchEvent(new Event('change'));
+    }
+    if (addCollaborators) addCollaborators.value = 'no';
+    
+    // Uncheck all categories
+    document.querySelectorAll('.category-checkbox').forEach(cb => cb.checked = false);
+    
+    // Clear buildings and labels lists
+    const buildingsList = document.getElementById('buildingsList');
+    const labelsList = document.getElementById('labelsList');
+    if (buildingsList) buildingsList.innerHTML = '<p>Loading buildings...</p>';
+    if (labelsList) labelsList.innerHTML = '<p>Please select a building first</p>';
+    
+    alert('Form cleared! You can create a new event.');
+};
+
+</script>
 
     <script src="create-event.js"></script>
 </body>
