@@ -366,3 +366,102 @@ async function startServer() {
 startServer().catch(console.error);
 
 module.exports = app;
+
+// DKU Event Management System - Frontend API Client
+
+class APIClient {
+    constructor(baseURL) {
+        this.baseURL = baseURL;
+    }
+
+    // Fetch all events
+    async getEvents() {
+        try {
+            const res = await fetch(`${this.baseURL}/api/events`);
+            if (!res.ok) throw new Error('Network response was not ok');
+            return await res.json();
+        } catch (err) {
+            console.error('Failed to fetch events:', err);
+            return [];
+        }
+    }
+
+    // Fetch event by ID
+    async getEventById(eventId) {
+        try {
+            const res = await fetch(`${this.baseURL}/api/events/${eventId}`);
+            if (!res.ok) throw new Error('Network response was not ok');
+            return await res.json();
+        } catch (err) {
+            console.error('Failed to fetch event:', err);
+            return null;
+        }
+    }
+
+    // Fetch categories
+    async getCategories() {
+        try {
+            const res = await fetch(`${this.baseURL}/api/categories`);
+            if (!res.ok) throw new Error('Network response was not ok');
+            return await res.json();
+        } catch (err) {
+            console.error('Failed to fetch categories:', err);
+            return [];
+        }
+    }
+
+    // Fetch locations
+    async getLocations() {
+        try {
+            const res = await fetch(`${this.baseURL}/api/locations`);
+            if (!res.ok) throw new Error('Network response was not ok');
+            return await res.json();
+        } catch (err) {
+            console.error('Failed to fetch locations:', err);
+            return [];
+        }
+    }
+
+    // Fetch organizers
+    async getOrganizers() {
+        try {
+            const res = await fetch(`${this.baseURL}/api/organizers`);
+            if (!res.ok) throw new Error('Network response was not ok');
+            return await res.json();
+        } catch (err) {
+            console.error('Failed to fetch organizers:', err);
+            return [];
+        }
+    }
+
+    // Filter events
+    async filterEvents(filters) {
+        try {
+            const res = await fetch(`${this.baseURL}/api/events/filter`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(filters)
+            });
+            if (!res.ok) throw new Error('Network response was not ok');
+            return await res.json();
+        } catch (err) {
+            console.error('Failed to filter events:', err);
+            return [];
+        }
+    }
+
+    // Fetch the user_PReference.sql content
+    async getUserPreferenceSQL() {
+        try {
+            const res = await fetch(`${this.baseURL.replace(/\/api$/, '')}/api/sql/user_preference`);
+            if (!res.ok) throw new Error('Network response was not ok');
+            return await res.json(); // { name, content }
+        } catch (err) {
+            console.error('Failed to fetch SQL file:', err);
+            return null;
+        }
+    }
+}
+
