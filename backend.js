@@ -335,7 +335,16 @@ app.get('/api/organizers', async (req, res) => {
         res.status(500).json({ error: 'Failed to fetch organizers' });
     }
 });
-
+app.get('/api/sql/user_preference', async (req, res) => {
+    try {
+        const sqlPath = path.join(__dirname, 'user_PReference.sql');
+        const content = await fs.readFile(sqlPath, 'utf8');
+        res.json({ name: 'user_PReference.sql', content });
+    } catch (error) {
+        console.error('Error reading SQL file:', error);
+        res.status(500).json({ error: 'Failed to load SQL file' });
+    }
+});
 // Health check endpoint
 app.get('/api/health', async (req, res) => {
     const isConnected = await testConnection();
