@@ -108,38 +108,43 @@ app.get('/api/events', async (req, res) => {
         const [rows] = await connection.execute(query);
         connection.release();
         
+        // We'll fetch organizer details separately to avoid misaligned GROUP_CONCAT columns
+        const eventIds = rows.map(r => r.event_id);
+
+        const organizersByEvent = {};
+        if (eventIds.length > 0) {
+            const placeholders = eventIds.map(() => '?').join(',');
+            const orgQuery = `
+                SELECT eo.event_id,
+                       eo.organizer_id,
+                       o.organizer_type,
+                       COALESCE(cl.club_name, sch.name, CONCAT_WS(' ', att.first_name, att.last_name), u.email) AS organizer_name,
+                       u.email AS organizer_email
+                FROM event_organizer eo
+                JOIN Organizers o ON eo.organizer_id = o.organizer_id
+                LEFT JOIN Users u ON o.user_id = u.user_id
+                LEFT JOIN Organizer_student os ON o.organizer_id = os.organizer_id
+                LEFT JOIN Attendees att ON os.attendee_id = att.attendee_id
+                LEFT JOIN Clubs cl ON o.organizer_id = cl.organizer_id
+                LEFT JOIN Organizer_school sch ON o.organizer_id = sch.organizer_id
+                WHERE eo.event_id IN (${placeholders})
+            `;
+
+            const [orgRows] = await connection.execute(orgQuery, eventIds);
+            orgRows.forEach(r => {
+                if (!organizersByEvent[r.event_id]) organizersByEvent[r.event_id] = [];
+                organizersByEvent[r.event_id].push({
+                    organizer_id: r.organizer_id,
+                    name: r.organizer_name || (r.organizer_email ? r.organizer_email.split('@')[0] : 'Unknown'),
+                    type: r.organizer_type,
+                    contact: r.organizer_email || 'events@dku.edu'
+                });
+            });
+        }
+
         // Transform the data to match frontend expectations
         const events = rows.map(row => {
-            // Process organizers
-            const organizerIds = row.organizer_ids ? row.organizer_ids.split(',') : [];
-            const organizerTypes = row.organizer_types ? row.organizer_types.split(',') : [];
-            const attendeeNames = row.attendee_names ? row.attendee_names.split(',') : [];
-            const clubNames = row.club_names ? row.club_names.split(',') : [];
-            const schoolNames = row.school_names ? row.school_names.split(',') : [];
-            const organizerEmails = row.organizer_emails ? row.organizer_emails.split(',') : [];
-    
-            const organizers = organizerIds.map((id, index) => {
-                const type = organizerTypes[index];
-                let name = 'Unknown';
-                let contact = organizerEmails[index] || 'events@dku.edu';
-    
-                if (type === 'club' && clubNames[index]) {
-                    name = clubNames[index];
-                } else if (type === 'school' && schoolNames[index]) {
-                    name = schoolNames[index];
-                } else if (type === 'student' && attendeeNames[index]) {
-                    name = attendeeNames[index];
-                } else if (organizerEmails[index]) {
-                    name = organizerEmails[index].split('@')[0];
-                }
-                
-                return {
-                    organizer_id: id,
-                    name: name,
-                    type: type,
-                    contact: contact
-                };
-            });
+            const organizers = organizersByEvent[row.event_id] || [];
 
             return {
                 event_id: row.event_id,
@@ -217,13 +222,18 @@ app.post('/api/events/filter', async (req, res) => {
         }
         
         // Prepare parameters for stored procedure
+        // Helper to ensure null is passed for empty/undefined values
+        function toNullableJson(arr) {
+            return Array.isArray(arr) && arr.length > 0 ? JSON.stringify(arr) : null;
+        }
+
         const spParams = [
-            start_date || null,
-            end_date || null,
-            event_type || null, // event_type is a single string or null now
-            categories && categories.length > 0 ? JSON.stringify(categories) : null, // JSON array of names
-            organizerIdsForSp, // JSON array of IDs or null
-            locations && locations.length > 0 ? JSON.stringify(locations) : null // JSON array of names
+            start_date ? start_date : null,
+            end_date ? end_date : null,
+            event_type ? event_type : null,
+            toNullableJson(categories),
+            organizerIdsForSp ? organizerIdsForSp : null,
+            toNullableJson(locations)
         ];
 
         console.log('Calling filter_events with params:', spParams);
@@ -293,36 +303,44 @@ app.post('/api/events/filter', async (req, res) => {
         const upcomingEvents = [];
         const pastEvents = [];
 
+        // fetch organizers for the matched events to ensure correct mapping
+        const matchedIds = eventDetails.map(r => r.event_id);
+        const organizersByEvent = {};
+        if (matchedIds.length > 0) {
+            const placeholders = matchedIds.map(() => '?').join(',');
+            const orgQuery = `
+                SELECT eo.event_id,
+                       eo.organizer_id,
+                       o.organizer_type,
+                       COALESCE(cl.club_name, sch.name, CONCAT_WS(' ', att.first_name, att.last_name), u.email) AS organizer_name,
+                       u.email AS organizer_email
+                FROM event_organizer eo
+                JOIN Organizers o ON eo.organizer_id = o.organizer_id
+                LEFT JOIN Users u ON o.user_id = u.user_id
+                LEFT JOIN Organizer_student os ON o.organizer_id = os.organizer_id
+                LEFT JOIN Attendees att ON os.attendee_id = att.attendee_id
+                LEFT JOIN Clubs cl ON o.organizer_id = cl.organizer_id
+                LEFT JOIN Organizer_school sch ON o.organizer_id = sch.organizer_id
+                WHERE eo.event_id IN (${placeholders})
+            `;
+
+            const [orgRows] = await connection.execute(orgQuery, matchedIds);
+            orgRows.forEach(r => {
+                if (!organizersByEvent[r.event_id]) organizersByEvent[r.event_id] = [];
+                organizersByEvent[r.event_id].push({
+                    organizer_id: r.organizer_id,
+                    name: r.organizer_name || (r.organizer_email ? r.organizer_email.split('@')[0] : 'Unknown'),
+                    type: r.organizer_type,
+                    contact: r.organizer_email || 'events@dku.edu'
+                });
+            });
+        }
+
         eventDetails.map(row => {
             const eventStartDate = new Date(`${row.start_date}T${row.start_time}`);
 
-            // Process organizers
-            const organizerIds = row.organizer_ids ? row.organizer_ids.split(',') : [];
-            const organizerTypes = row.organizer_types ? row.organizer_types.split(',') : [];
-            const attendeeNames = row.attendee_names ? row.attendee_names.split(',') : [];
-            const clubNames = row.club_names ? row.club_names.split(',') : [];
-            const schoolNames = row.school_names ? row.school_names.split(',') : [];
-            const organizerEmails = row.organizer_emails ? row.organizer_emails.split(',') : [];
-    
-            const organizers = organizerIds.map((id, index) => {
-                const type = organizerTypes[index];
-                let name = 'Unknown';
-                let contact = organizerEmails[index] || 'events@dku.edu';
-    
-                if (type === 'club' && clubNames[index]) {
-                    name = clubNames[index];
-                } else if (type === 'school' && schoolNames[index]) {
-                    name = schoolNames[index];
-                } else if (type === 'student' && attendeeNames[index]) {
-                    name = attendeeNames[index];
-                }
-                return {
-                    organizer_id: id,
-                    name: name,
-                    type: type,
-                    contact: contact
-                };
-            });
+            // Use organizers fetched separately (guarantees correct association)
+            const organizers = organizersByEvent[row.event_id] || [];
 
             const event = {
                 event_id: row.event_id,
@@ -361,7 +379,8 @@ app.post('/api/events/filter', async (req, res) => {
         
     } catch (error) {
         console.error('Error filtering events:', error);
-        res.status(500).json({ error: 'Failed to filter events' });
+        // Return full error details for debugging (remove in production)
+        res.status(500).json({ error: 'Failed to filter events', details: error.message, stack: error.stack });
     } finally {
         if (connection) connection.release();
     }
@@ -419,36 +438,33 @@ app.get('/api/events/:id', async (req, res) => {
         
         const row = rows[0];
 
-        // Process organizers
-        const organizerIds = row.organizer_ids ? row.organizer_ids.split(',') : [];
-        const organizerTypes = row.organizer_types ? row.organizer_types.split(',') : [];
-        const attendeeNames = row.attendee_names ? row.attendee_names.split(',') : [];
-        const clubNames = row.club_names ? row.club_names.split(',') : [];
-        const schoolNames = row.school_names ? row.school_names.split(',') : [];
-        const organizerEmails = row.organizer_emails ? row.organizer_emails.split(',') : [];
-
-        const organizers = organizerIds.map((id, index) => {
-            const type = organizerTypes[index];
-            let name = 'Unknown';
-            let contact = organizerEmails[index] || 'events@dku.edu';
-
-            if (type === 'club' && clubNames[index]) {
-                name = clubNames[index];
-            } else if (type === 'school' && schoolNames[index]) {
-                name = schoolNames[index];
-            } else if (type === 'student' && attendeeNames[index]) {
-                name = attendeeNames[index];
-            } else if (organizerEmails[index]) {
-                name = organizerEmails[index].split('@')[0]; // Use email prefix if no name found
-            }
-            
-            return {
-                organizer_id: id,
-                name: name,
-                type: type,
-                contact: contact
-            };
-        });
+        // Fetch organizers for the event to ensure correct name/type mapping
+        const organizers = [];
+        try {
+            const orgQuery = `
+                SELECT eo.organizer_id,
+                       o.organizer_type,
+                       COALESCE(cl.club_name, sch.name, CONCAT_WS(' ', att.first_name, att.last_name), u.email) AS organizer_name,
+                       u.email AS organizer_email
+                FROM event_organizer eo
+                JOIN Organizers o ON eo.organizer_id = o.organizer_id
+                LEFT JOIN Users u ON o.user_id = u.user_id
+                LEFT JOIN Organizer_student os ON o.organizer_id = os.organizer_id
+                LEFT JOIN Attendees att ON os.attendee_id = att.attendee_id
+                LEFT JOIN Clubs cl ON o.organizer_id = cl.organizer_id
+                LEFT JOIN Organizer_school sch ON o.organizer_id = sch.organizer_id
+                WHERE eo.event_id = ?
+            `;
+            const [orgRows] = await connection.execute(orgQuery, [eventId]);
+            orgRows.forEach(r => organizers.push({
+                organizer_id: r.organizer_id,
+                name: r.organizer_name || (r.organizer_email ? r.organizer_email.split('@')[0] : 'Unknown'),
+                type: r.organizer_type,
+                contact: r.organizer_email || 'events@dku.edu'
+            }));
+        } catch (err) {
+            console.debug('Failed to load organizers for event', eventId, err.message);
+        }
 
         const event = {
             event_id: row.event_id,
@@ -646,6 +662,125 @@ app.get('/api/organizers/:id/events', async (req, res) => {
     } catch (error) {
         console.error('Error fetching events by organizer:', error.message);
         res.status(500).json({ error: 'Failed to fetch events by organizer' });
+    }
+});
+
+// Join club (attendee joins a club)
+app.post('/api/clubs/join', async (req, res) => {
+    try {
+        const { attendee_id, club_id, organizer_id, remind_required } = req.body;
+
+        if (!attendee_id) return res.status(400).json({ error: 'attendee_id is required' });
+
+        const connection = await pool.getConnection();
+
+        // Resolve club_id if organizer_id provided
+        let finalClubId = club_id;
+        if (!finalClubId) {
+            if (!organizer_id) {
+                connection.release();
+                return res.status(400).json({ error: 'club_id or organizer_id required' });
+            }
+
+            const [rows] = await connection.execute('SELECT club_id FROM Clubs WHERE organizer_id = ?', [organizer_id]);
+            if (!rows || rows.length === 0) {
+                connection.release();
+                return res.status(404).json({ error: 'Club not found for organizer' });
+            }
+            finalClubId = rows[0].club_id;
+        }
+
+        // Ensure the attendee exists. Accept either an attendee_id or a user_id (many clients store Users.user_id)
+        let targetAttendeeId = attendee_id;
+        let [attRows] = await connection.execute('SELECT attendee_id FROM Attendees WHERE attendee_id = ?', [targetAttendeeId]);
+        if (!attRows || attRows.length === 0) {
+            // attempt to find by user_id as a mapping
+            const [byUser] = await connection.execute('SELECT attendee_id FROM Attendees WHERE user_id = ? LIMIT 1', [targetAttendeeId]);
+            if (byUser && byUser.length > 0) {
+                targetAttendeeId = byUser[0].attendee_id;
+            } else {
+                // No Attendees row found. See if the provided id is a Users.user_id belonging to an attendee.
+                const [userRows] = await connection.execute('SELECT user_id, user_type, email FROM Users WHERE user_id = ? LIMIT 1', [targetAttendeeId]);
+                if (userRows && userRows.length > 0) {
+                    const user = userRows[0];
+                    if (user.user_type && user.user_type.toLowerCase().includes('attendee')) {
+                        // Create a minimal Attendees row so the join can proceed
+                        try {
+                            // Try a more robust insert using available Users data.
+                            // Insert user_id and copy basic name/email from Users row (use prefix of email as a simple first_name)
+                            const insertSql = `
+                                INSERT IGNORE INTO Attendees (user_id, first_name, last_name, email)
+                                SELECT user_id, SUBSTRING_INDEX(email, '@', 1) AS first_name, '' AS last_name, email
+                                FROM Users WHERE user_id = ?
+                            `;
+                            const [insertResult] = await connection.execute(insertSql, [user.user_id]);
+
+                            // Try to discover attendee_id afterwards
+                            const [newRow] = await connection.execute('SELECT attendee_id FROM Attendees WHERE user_id = ? LIMIT 1', [user.user_id]);
+                            if (newRow && newRow.length > 0) targetAttendeeId = newRow[0].attendee_id;
+                        } catch (insErr) {
+                            console.error('Failed to create Attendees row for user', targetAttendeeId, insErr.message);
+                            connection.release();
+                            return res.status(500).json({ error: 'Failed to create attendee record', details: insErr.message });
+                        }
+                    } else {
+                        connection.release();
+                        return res.status(404).json({ error: 'Attendee not found' });
+                    }
+                } else {
+                    connection.release();
+                    return res.status(404).json({ error: 'Attendee not found' });
+                }
+            }
+        }
+
+        // Insert into Club_members (ignore duplicate)
+        const remind = remind_required ? 1 : 0;
+        try {
+            await connection.execute(
+                'INSERT IGNORE INTO Club_members (club_id, attendee_id, remind_required) VALUES (?, ?, ?)',
+                [finalClubId, targetAttendeeId, remind]
+            );
+        } catch (err) {
+            connection.release();
+            console.error('Failed to join club:', err.message);
+            return res.status(500).json({ error: 'Failed to join club', details: err.message });
+        }
+
+        connection.release();
+        return res.json({ success: true, club_id: finalClubId, attendee_id });
+    } catch (error) {
+        console.error('Error in /api/clubs/join:', error.message);
+        return res.status(500).json({ error: error.message });
+    }
+});
+
+// Check membership status for a given organizer (club) and attendee
+app.get('/api/clubs/check', async (req, res) => {
+    try {
+        const organizer_id = req.query.organizer_id ? parseInt(req.query.organizer_id) : null;
+        const attendee_id = req.query.attendee_id ? parseInt(req.query.attendee_id) : null;
+
+        if (!organizer_id || !attendee_id) return res.status(400).json({ error: 'organizer_id and attendee_id are required' });
+
+        const connection = await pool.getConnection();
+
+        // Resolve club_id from organizer
+        const [clubRows] = await connection.execute('SELECT club_id FROM Clubs WHERE organizer_id = ?', [organizer_id]);
+        if (!clubRows || clubRows.length === 0) {
+            connection.release();
+            return res.status(404).json({ error: 'Club not found for organizer' });
+        }
+        const club_id = clubRows[0].club_id;
+
+        // Check club_members
+        const [rows] = await connection.execute('SELECT 1 FROM Club_members WHERE club_id = ? AND attendee_id = ? LIMIT 1', [club_id, attendee_id]);
+        connection.release();
+
+        return res.json({ club_id, joined: rows && rows.length > 0 });
+    } catch (err) {
+        console.error('Error checking club membership:', err.message);
+        return res.status(500).json({ error: err.message });
     }
 });
 

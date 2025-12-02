@@ -314,8 +314,15 @@ async function loadRealData() {
             window.apiClient.getOrganizers() // get all organizers for filter
         ]);
         
-        AppState.events.upcoming = eventsResponse.upcoming || [];
-        AppState.events.past = eventsResponse.past || [];
+        // Ensure no duplicate events (some DB queries can produce duplicates)
+        const dedupe = (arr) => {
+            if (!Array.isArray(arr)) return [];
+            const seen = new Set();
+            return arr.filter(e => e && e.event_id && !seen.has(e.event_id) && (seen.add(e.event_id) || true));
+        };
+
+        AppState.events.upcoming = dedupe(eventsResponse.upcoming || []);
+        AppState.events.past = dedupe(eventsResponse.past || []);
         AppState.filteredEvents.upcoming = [...AppState.events.upcoming];
         AppState.filteredEvents.past = [...AppState.events.past];
         
@@ -338,8 +345,14 @@ function loadMockData() {
     const mockUpcoming = mockEvents.filter(event => new Date(`${event.start_date}T${event.start_time}`) > now);
     const mockPast = mockEvents.filter(event => new Date(`${event.start_date}T${event.start_time}`) <= now);
 
-    AppState.events.upcoming = [...mockUpcoming];
-    AppState.events.past = [...mockPast];
+    // dedupe mock sets too (safe guard)
+    const dedupe = (arr) => {
+        const seen = new Set();
+        return arr.filter(e => e && e.event_id && !seen.has(e.event_id) && (seen.add(e.event_id) || true));
+    };
+
+    AppState.events.upcoming = dedupe([...mockUpcoming]);
+    AppState.events.past = dedupe([...mockPast]);
     AppState.filteredEvents.upcoming = [...mockUpcoming];
     AppState.filteredEvents.past = [...mockPast];
     
@@ -669,12 +682,18 @@ function filterEventsLocally() {
         filteredUpcoming = filteredUpcoming.filter(event => 
             event.title.toLowerCase().includes(searchTerm) ||
             event.description.toLowerCase().includes(searchTerm) ||
-            (event.organizer && event.organizer.some(org => org.name.toLowerCase().includes(searchTerm)))
+            (() => {
+                const orgs = Array.isArray(event.organizer) ? event.organizer : (event.organizer ? [event.organizer] : []);
+                return orgs.some(org => (org && org.name && org.name.toLowerCase().includes(searchTerm)));
+            })()
         );
         filteredPast = filteredPast.filter(event => 
             event.title.toLowerCase().includes(searchTerm) ||
             event.description.toLowerCase().includes(searchTerm) ||
-            (event.organizer && event.organizer.some(org => org.name.toLowerCase().includes(searchTerm)))
+            (() => {
+                const orgs = Array.isArray(event.organizer) ? event.organizer : (event.organizer ? [event.organizer] : []);
+                return orgs.some(org => (org && org.name && org.name.toLowerCase().includes(searchTerm)));
+            })()
         );
     }
     
@@ -710,7 +729,10 @@ function filterEventsLocally() {
     
     // Apply organizer filter
     if (AppState.currentFilters.organizers.length > 0) {
-        const filterByOrganizer = (event) => event.organizer.some(org => AppState.currentFilters.organizers.includes(org.name));
+        const filterByOrganizer = (event) => {
+            const orgs = Array.isArray(event.organizer) ? event.organizer : (event.organizer ? [event.organizer] : []);
+            return orgs.some(org => org && AppState.currentFilters.organizers.includes(org.name));
+        };
         filteredUpcoming = filteredUpcoming.filter(filterByOrganizer);
         filteredPast = filteredPast.filter(filterByOrganizer);
     }
@@ -751,11 +773,19 @@ async function filterEventsViaAPI() {
             locations: AppState.currentFilters.locations
         };
         
-        const response = await window.apiClient.filterEvents(filters);
-        
-        if (!response.ok) throw new Error('Failed to filter events');
-        
-        return await response.json();
+        // APIClient.filterEvents returns parsed JSON (or [] on failure) —
+        // it is NOT a raw fetch Response. Handle the returned object directly.
+        const result = await window.apiClient.filterEvents(filters);
+
+        // If the API client returned an empty array that indicates a failure
+        if (Array.isArray(result) && result.length === 0) throw new Error('Failed to filter events');
+
+        // Expect an object with upcoming/past arrays
+        if (result && typeof result === 'object') {
+            return result;
+        }
+
+        throw new Error('Failed to filter events');
         
     } catch (error) {
         console.error('API filter error:', error);
@@ -909,13 +939,29 @@ function renderEvents(append = false) {
 
     if (!upcomingEventsGrid || !pastEventsGrid) return;
 
+    // Remove any duplicate events (same event_id) — keep first occurrence
+    function uniqueById(arr) {
+        const seen = new Set();
+        const out = [];
+        for (const it of arr) {
+            if (!it || !it.event_id) continue;
+            if (!seen.has(it.event_id)) {
+                seen.add(it.event_id);
+                out.push(it);
+            }
+        }
+        return out;
+    }
+
     // Render upcoming events
-    const sortedUpcomingEvents = sortEvents(AppState.filteredEvents.upcoming, AppState.currentSort.upcoming);
+    const uniqueUpcoming = uniqueById(AppState.filteredEvents.upcoming);
+    const sortedUpcomingEvents = sortEvents(uniqueUpcoming, AppState.currentSort.upcoming);
     const upcomingEventsToShow = sortedUpcomingEvents.slice(0, AppState.currentPage.upcoming * AppState.eventsPerPage);
     upcomingEventsGrid.innerHTML = upcomingEventsToShow.map(event => createEventCard(event)).join('');
 
-    // Render past events
-    const sortedPastEvents = sortEvents(AppState.filteredEvents.past, AppState.currentSort.past);
+    // Render past events (deduped)
+    const uniquePast = uniqueById(AppState.filteredEvents.past);
+    const sortedPastEvents = sortEvents(uniquePast, AppState.currentSort.past);
     const pastEventsToShow = sortedPastEvents.slice(0, AppState.currentPage.past * AppState.eventsPerPage);
     pastEventsGrid.innerHTML = pastEventsToShow.map(event => createEventCard(event)).join('');
 
@@ -960,7 +1006,7 @@ function sortEvents(events, sortType) {
     }
 }
 
-function createEventCard(event, type = 'upcoming') {
+function createEventCard(event) {
     const eventDate = new Date(event.start_date);
     const formattedDate = eventDate.toLocaleDateString('en-US', { 
         month: 'short', 
@@ -970,75 +1016,54 @@ function createEventCard(event, type = 'upcoming') {
     
     const formattedTime = formatTime(event.start_time);
     const costDisplay = event.cost === 0 ? 'Free' : `$${event.cost}`;
-    const costClass = event.cost === 0 ? 'text-green-600' : 'text-orange-600';
     
-    const eventTypeColors = {
-        'online': 'bg-blue-100 text-blue-800',
-        'on_campus': 'bg-green-100 text-green-800',
-        'off_campus': 'bg-purple-100 text-purple-800'
-    };
-    
-    const eventTypeColor = eventTypeColors[event.event_type] || 'bg-gray-100 text-gray-800';
+    const organizerList = Array.isArray(event.organizer) ? event.organizer : (event.organizer ? [event.organizer] : []);
+    const clubOrganizer = organizerList.find(o => o && o.type === 'club' && o.organizer_id);
+    const organizerLinks = organizerList.map(org => 
+        `<a href="organizer-details.html?id=${org.organizer_id}" class="text-blue-600 hover:underline">${escapeHtml(org.name)}</a>`
+    ).join(', ');
 
-    const imageUrl = event.flyer ? `data:image/jpeg;base64,${event.flyer}` : 'resources/hero-campus-events.jpg';
-
-    const organizerNames = event.organizer && event.organizer.length > 0 
-        ? event.organizer.map(org => `<a href="organizer-details.html?id=${org.organizer_id}" class="hover:underline">${org.name}</a>`).join(', ') 
-        : 'Various Organizers';
-
-    const applicationStatus = event.application_required 
-        ? '<span class="text-red-600">Application Required</span>' 
+    const applicationStatus = event.application_required
+        ? '<span class="text-red-600">Application Required</span>'
         : '<span class="text-green-600">No Application</span>';
 
-    const locationDisplay = event.online_link 
-        ? `<a href="${event.online_link}" target="_blank" class="text-blue-600 hover:underline">Online Event</a>`
-        : `${event.location.building || ''}, ${event.location.label || 'TBD'}`.trim();
-    
+    const locationDisplay = event.online_link
+        ? `<a href="${escapeHtml(event.online_link)}" target="_blank" class="text-blue-600 hover:underline">Online</a>`
+        : (event.location && (event.location.label || event.location.building) ? escapeHtml(event.location.label || event.location.building) : 'Location TBD');
+
     return `
-        <a href="event-details.html?id=${event.event_id}" class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden card-hover block">
-            <div class="h-48 relative" style="background-image: url('${imageUrl}'); background-size: cover; background-position: center;">
-                <div class="absolute top-4 left-4">
-                    <span class="event-type-badge ${eventTypeColor} px-3 py-1 rounded-full text-sm font-medium">
-                        ${event.event_type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                    </span>
-                </div>
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+            <h3 class="text-lg font-semibold text-gray-800 mb-1">
+                <a href="event-details.html?id=${event.event_id}" class="text-blue-600 hover:underline">${escapeHtml(event.title)}</a>
+            </h3>
+            <p class="text-gray-600 text-sm mb-2">${escapeHtml(event.description)}</p>
+            <div class="mt-2 flex items-center gap-3 text-sm text-gray-600">
+                <div class="flex items-center gap-2">${locationDisplay}</div>
+                <div class="flex items-center gap-2">${formattedDate} • ${formattedTime}</div>
             </div>
-            <div class="p-6">
-                <h3 class="text-lg font-semibold text-gray-800 mb-2 line-clamp-2">${event.title}</h3>
-                <p class="text-gray-600 text-sm mb-4 line-clamp-2">${event.description}</p>
-                
-                <div class="space-y-2 mb-4">
-                    <div class="flex items-center text-sm text-gray-500">
-                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3a2 2 0 012-2h4a2 2 0 012 2v4m-6 0V6a2 2 0 012-2h4a2 2 0 012 2v1m-6 0h6m-6 0l-1 1v4a2 2 0 01-2 2H6a2 2 0 01-2-2V8l-1-1m1 0V7a2 2 0 012-2h4a2 2 0 012 2v1"></path>
-                        </svg>
-                        ${locationDisplay}
-                    </div>
-                    <div class="flex items-center text-sm text-gray-500">
-                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                        </svg>
-                        ${formattedDate} • ${formattedTime}
-                    </div>
-                    <div class="flex items-center text-sm text-gray-500">
-                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
-                        </svg>
-                        ${organizerNames}
-                    </div>
-                </div>
-                
+            <div class="mt-3 text-sm text-gray-700">
                 <div class="flex items-center justify-between">
-                    <div class="flex items-center space-x-2">
-                        ${event.categories.slice(0, 2).map(category => 
-                            `<span class="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs">${category}</span>`
-                        ).join('')}
-                    </div>
-                    <span class="text-sm font-semibold ${costClass}">${costDisplay} ${applicationStatus}</span>
+                    <div><strong>Organizer:</strong> ${organizerLinks.length > 0 ? organizerLinks : 'Various Organizers'}</div>
+                    
                 </div>
             </div>
-        </a>
+            <div class="mt-3 text-sm text-gray-700">
+                <div>${applicationStatus}</div>
+                <div class="text-sm font-semibold">${costDisplay}</div>
+            </div>
+        </div>
     `;
+}
+
+// small helper to escape titles/descriptions used in attributes
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
 }
 
 function formatTime(timeString) {
@@ -1071,6 +1096,8 @@ function addEventCardListeners() {
             toggleSaveEvent(eventId);
         });
     });
+
+    // join club handlers removed from event cards — handled on organizer details page
 }
 
 function showEventDetails(eventId) {

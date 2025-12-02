@@ -123,6 +123,36 @@ class APIClient {
             return [];
         }
     }
+
+    // Join a club (attendee joins club by organizer_id or club_id)
+    async joinClub(payload) {
+        try {
+            const response = await fetch(`${this.baseURL}/clubs/join`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            // return parsed server response even when status is not 200 so UI can display the message
+            const json = await response.json().catch(() => ({}));
+            return { ok: response.ok, status: response.status, json };
+        } catch (error) {
+            console.error('Error joining club:', error);
+            return { ok: false, error: error.message };
+        }
+    }
+
+    // Check if attendee already joined a club (using organizer_id)
+    async checkClubMembership(organizerId, attendeeId) {
+        try {
+            const params = new URLSearchParams({ organizer_id: organizerId, attendee_id: attendeeId });
+            const response = await fetch(`${this.baseURL}/clubs/check?${params.toString()}`);
+            if (!response.ok) throw new Error('Failed to check club membership');
+            return await response.json();
+        } catch (error) {
+            console.error('Error checking club membership:', error);
+            return { ok: false, error: error.message };
+        }
+    }
 }
 
 // Create global API client instance
