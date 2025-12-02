@@ -91,11 +91,35 @@ class APIClient {
     // Get all organizers
     async getOrganizers() {
         try {
-            const response = await fetch(`${this.baseURL}/organizers`);
+            const response = await fetch(`${this.baseURL}/all-organizers`); // Changed to /all-organizers
             if (!response.ok) throw new Error('Failed to fetch organizers');
             return await response.json();
         } catch (error) {
             console.error('Error fetching organizers:', error);
+            return [];
+        }
+    }
+
+    // Get single organizer by ID
+    async getOrganizer(id) {
+        try {
+            const response = await fetch(`${this.baseURL}/organizers/${id}`);
+            if (!response.ok) throw new Error('Failed to fetch organizer');
+            return await response.json();
+        } catch (error) {
+            console.error('Error fetching organizer:', error);
+            return null;
+        }
+    }
+
+    // Get events by organizer ID
+    async getEventsByOrganizer(organizerId) {
+        try {
+            const response = await fetch(`${this.baseURL}/organizers/${organizerId}/events`);
+            if (!response.ok) throw new Error('Failed to fetch events by organizer');
+            return await response.json();
+        } catch (error) {
+            console.error('Error fetching events by organizer:', error);
             return [];
         }
     }

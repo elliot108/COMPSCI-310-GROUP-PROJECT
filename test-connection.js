@@ -3,10 +3,10 @@ const mysql = require('mysql2/promise');
 
 // Database connection configuration
 const dbConfig = {
-    host: 'your host',
-    port: your port,
+    host: '127.0.0.1',
+    port: 3306,
     user: 'root', // Update with your MySQL username
-    password: 'your password', // Update with your MySQL password
+    password: 'Iam@qu33r', // Update with your MySQL password
     database: 'dku_event_system'
 };
 

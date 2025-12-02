@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign Up - DKU Events</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .hidden { display: none; }
+    </style>
+</head>
+<body class="min-h-screen bg-gray-50 flex items-center justify-center">
+    <div class="w-full max-w-2xl bg-white rounded-lg shadow p-8">
+        <h1 class="text-2xl font-semibold mb-4">Create an account</h1>
+
+        <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700">Account type</label>
+            <select id="accountType" class="mt-1 block w-64 px-3 py-2 border rounded-md">
+                <option value="attendee">Attendee</option>
+                <option value="club">Club Organizer</option>
+                <option value="school">School Organizer</option>
+                <option value="student">Student Organizer</option>
+            </select>
+        </div>
+
+        <form id="signupForm" class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Email</label>
+                <input id="email" type="email" required class="mt-1 block w-full px-3 py-2 border rounded-md">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Password</label>
+                <input id="password" type="password" required class="mt-1 block w-full px-3 py-2 border rounded-md">
+            </div>
+
+            <!-- Attendee / Student fields -->
+            <div id="attendeeFields">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">First name</label>
+                    <input id="first_name" type="text" class="mt-1 block w-full px-3 py-2 border rounded-md">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Last name</label>
+                    <input id="last_name" type="text" class="mt-1 block w-full px-3 py-2 border rounded-md">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">NetID</label>
+                    <input id="netId" type="text" class="mt-1 block w-full px-3 py-2 border rounded-md">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Graduation Year</label>
+                    <input id="gradYear" type="number" min="1900" max="2100" placeholder="e.g. 2026" class="mt-1 block w-full px-3 py-2 border rounded-md">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Major</label>
+                    <input id="major" type="text" placeholder="e.g. Computer Science" class="mt-1 block w-full px-3 py-2 border rounded-md">
+                </div>
+            </div>
+
+            <!-- Club fields -->
+            <div id="clubFields" class="hidden">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Club name</label>
+                    <input id="club_name" type="text" class="mt-1 block w-full px-3 py-2 border rounded-md">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Club URL</label>
+                    <input id="club_url" type="text" class="mt-1 block w-full px-3 py-2 border rounded-md">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Year founded</label>
+                    <input id="yearFounded" type="number" min="1000" max="9999" placeholder="e.g. 2005" class="mt-1 block w-full px-3 py-2 border rounded-md">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Contact email</label>
+                    <input id="contact_email" type="email" class="mt-1 block w-full px-3 py-2 border rounded-md">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Year founded</label>
+                    <input id="yearFounded" type="number" min="1800" max="2100" placeholder="e.g. 2018" class="mt-1 block w-full px-3 py-2 border rounded-md">
+                </div>
+            </div>
+
+            <!-- School fields -->
+            <div id="schoolFields" class="hidden">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Department</label>
+                    <input id="department" type="text" class="mt-1 block w-full px-3 py-2 border rounded-md">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">School name</label>
+                    <input id="school_name" type="text" class="mt-1 block w-full px-3 py-2 border rounded-md">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Supervisor</label>
+                    <input id="supervisor" type="text" class="mt-1 block w-full px-3 py-2 border rounded-md">
+                </div>
+            </div>
+
+            <div class="flex items-center justify-between space-x-3">
+                <div class="flex items-center space-x-2">
+                    <button id="signupBtn" type="submit" class="btn-primary px-4 py-2 rounded text-white">Sign up</button>
+                    <button id="signupDirectBtn" type="button" class="px-4 py-2 rounded border border-gray-300 text-gray-700 hover:bg-gray-100">Sign up (Direct)</button>
+                </div>
+                <a href="login.html" class="text-sm text-teal-600 hover:underline">Already have an account? Log in</a>
+            </div>
+        </form>
+
+        <p id="message" class="text-sm text-red-600 mt-3"></p>
+    </div>
+
+    <script src="auth.js"></script>
+    <script>
+        const accountType = document.getElementById('accountType');
+        const attendeeFields = document.getElementById('attendeeFields');
+        const clubFields = document.getElementById('clubFields');
+        const schoolFields = document.getElementById('schoolFields');
+        const messageEl = document.getElementById('message');
+
+        function updateFields() {
+            const t = accountType.value;
+            attendeeFields.classList.toggle('hidden', !(t === 'attendee' || t === 'student'));
+            clubFields.classList.toggle('hidden', t !== 'club');
+            schoolFields.classList.toggle('hidden', t !== 'school');
+        }
+
+        accountType.addEventListener('change', updateFields);
+        updateFields();
+
+        document.getElementById('signupForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            messageEl.textContent = '';
+            const t = accountType.value;
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+
+            try {
+                // Collect all fields into a single payload so every attribute is sent to the API
+                const payload = {
+                    email,
+                    password,
+                    accountType: t,
+                    first_name: document.getElementById('first_name').value.trim() || null,
+                    last_name: document.getElementById('last_name').value.trim() || null,
+                    netId: document.getElementById('netId').value.trim() || null,
+                    gradYear: document.getElementById('gradYear').value || null,
+                    major: document.getElementById('major').value.trim() || null,
+                    club_name: document.getElementById('club_name').value.trim() || null,
+                    club_url: document.getElementById('club_url').value.trim() || null,
+                    contact_email: document.getElementById('contact_email').value.trim() || null,
+                    yearFounded: document.getElementById('yearFounded').value ? Number(document.getElementById('yearFounded').value) : null,
+                    yearFounded: document.getElementById('yearFounded').value ? Number(document.getElementById('yearFounded').value) : null,
+                    yearFounded: document.getElementById('yearFounded').value || null,
+                    department: document.getElementById('department').value.trim() || null,
+                    name: document.getElementById('school_name').value.trim() || null,
+                    supervisor: document.getElementById('supervisor').value.trim() || null
+                };
+
+                let res;
+                if (t === 'attendee') {
+                    res = await postJson('/api/signup/attendee', payload);
+                } else if (t === 'club') {
+                    res = await postJson('/api/signup/club', payload);
+                } else if (t === 'school') {
+                    res = await postJson('/api/signup/school', payload);
+                } else if (t === 'student') {
+                    res = await postJson('/api/signup/student', payload);
+                }
+
+                if (!res.ok) {
+                    messageEl.textContent = res.json && (res.json.error || res.json.message) ? (res.json.error || res.json.message) : 'Signup failed';
+                    return;
+                }
+
+                // If signup reported success, attempt to login to obtain user_id and profile
+                const loginRes = await postJson('/api/login', { email, password });
+                if (!loginRes.ok || !loginRes.json || !loginRes.json.user_id) {
+                    messageEl.textContent = 'Signed up but failed to login automatically: ' + (loginRes.json && (loginRes.json.error || loginRes.json.message) ? (loginRes.json.error || loginRes.json.message) : 'login failed');
+                    return;
+                }
+
+                const userId = loginRes.json.user_id;
+                const base = (typeof baseApi !== 'undefined' ? baseApi : '');
+                const profileRes = await fetch(base + '/api/users/' + userId);
+                const profile = await profileRes.json();
+                if (!profileRes.ok) {
+                    messageEl.textContent = profile.message || profile.error || 'Failed to load profile after signup';
+                    return;
+                }
+
+                localStorage.setItem('dku_user_id', userId);
+                localStorage.setItem('dku_user', JSON.stringify(profile));
+                window.location.href = 'index.html';
+
+            } catch (err) {
+                messageEl.textContent = 'Signup failed: ' + err.message;
+            }
+        });
+
+        // Direct signup button: calls the backend signup procedure endpoints directly
+        document.getElementById('signupDirectBtn').addEventListener('click', async (e) => {
+            e.preventDefault();
+            messageEl.textContent = '';
+            const t = accountType.value;
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+
+            // Build payload with all fields
+            const payload = {
+                email,
+                password,
+                accountType: t,
+                first_name: document.getElementById('first_name').value.trim() || null,
+                last_name: document.getElementById('last_name').value.trim() || null,
+                netId: document.getElementById('netId').value.trim() || null,
+                gradYear: document.getElementById('gradYear').value || null,
+                major: document.getElementById('major').value.trim() || null,
+                club_name: document.getElementById('club_name').value.trim() || null,
+                club_url: document.getElementById('club_url').value.trim() || null,
+                contact_email: document.getElementById('contact_email').value.trim() || null,
+                yearFounded: document.getElementById('yearFounded').value || null,
+                department: document.getElementById('department').value.trim() || null,
+                name: document.getElementById('school_name').value.trim() || null,
+                supervisor: document.getElementById('supervisor').value.trim() || null
+            };
+
+            try {
+                let res;
+                if (t === 'attendee') {
+                    res = await postJson('/api/signup/attendee', payload);
+                } else if (t === 'club') {
+                    res = await postJson('/api/signup/club', payload);
+                } else if (t === 'school') {
+                    res = await postJson('/api/signup/school', payload);
+                } else if (t === 'student') {
+                    res = await postJson('/api/signup/student', payload);
+                }
+
+                if (!res.ok) {
+                    messageEl.textContent = res.json && (res.json.error || res.json.message) ? (res.json.error || res.json.message) : 'Direct signup failed';
+                    return;
+                }
+
+                // Show returned message from stored procedure
+                const msg = res.json && (res.json.message || res.json.error) ? (res.json.message || res.json.error) : 'Signup completed';
+                alert(msg);
+
+                // Optionally auto-login after successful signup
+                const loginRes = await postJson('/api/login', { email, password });
+                if (loginRes.ok && loginRes.json && loginRes.json.user_id) {
+                    const userId = loginRes.json.user_id;
+                    const base = (typeof baseApi !== 'undefined' ? baseApi : '');
+                    const profileRes = await fetch(base + '/api/users/' + userId);
+                    const profile = await profileRes.json();
+                    if (profileRes.ok) {
+                        localStorage.setItem('dku_user_id', userId);
+                        localStorage.setItem('dku_user', JSON.stringify(profile));
+                        window.location.href = 'index.html';
+                        return;
+                    }
+                }
+
+            } catch (err) {
+                messageEl.textContent = 'Direct signup error: ' + err.message;
+            }
+        });
+    </script>
+</body>
+</html>
