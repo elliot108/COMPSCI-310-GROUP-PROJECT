@@ -99,6 +99,18 @@ class APIClient {
             return [];
         }
     }
+async getUserPreferenceSQL() {
+        try {
+            const res = await fetch(`${this.baseURL.replace(/\/api$/, '')}/api/sql/user_preference`);
+            if (!res.ok) throw new Error('Network response was not ok');
+            return await res.json(); // { name, content }
+        } catch (err) {
+            console.error('Failed to fetch SQL file:', err);
+            return null;
+        }
+    }
+
+    
 }
 
 // Create global API client instance
