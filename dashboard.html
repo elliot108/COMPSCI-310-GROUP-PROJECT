@@ -105,7 +105,7 @@
                 </div>
                 
                 <div class="mt-6 md:mt-0 reveal-up">
-                    <button class="btn-primary px-6 py-3 rounded-lg font-semibold text-white">
+                    <button id="createEventBtn" class="btn-primary px-6 py-3 rounded-lg font-semibold text-white">
                         Create New Event
                     </button>
                 </div>
@@ -469,6 +469,30 @@
     <script>
         // Initialize animations
         document.addEventListener('DOMContentLoaded', function() {
+            // Ensure user is logged in
+            try {
+                const stored = localStorage.getItem('dku_user');
+                if (!stored) {
+                    window.location.href = 'login.html';
+                    return;
+                }
+
+                const user = JSON.parse(stored);
+                // Hide Create button for attendees
+                const createBtn = document.getElementById('createEventBtn');
+                if (createBtn && user && user.user_type && user.user_type.toLowerCase().includes('attendee')) {
+                    createBtn.style.display = 'none';
+                }
+                // Optionally show initials in nav
+                const initialsEl = document.querySelector('.w-8.h-8');
+                if (initialsEl && user && user.email) {
+                    const parts = (user.email.split('@')[0] || '').split('.');
+                    const initials = parts.map(p => p[0] ? p[0].toUpperCase() : '').join('').slice(0,2) || user.email.slice(0,2).toUpperCase();
+                    initialsEl.textContent = initials;
+                }
+            } catch (e) {
+                // ignore and let rest of script run
+            }
             // Reveal animations on scroll
             const revealElements = document.querySelectorAll('.reveal-up');
             

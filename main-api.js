@@ -2,20 +2,22 @@
 
 // Global state management
 const AppState = {
-    events: [],
-    filteredEvents: [],
+    events: { upcoming: [], past: [] }, // Separate upcoming and past events
+    filteredEvents: { upcoming: [], past: [] },
+    allCategories: [],
+    allOrganizers: [],
+    allLocations: [],
     currentFilters: {
         search: '',
         dateRange: { start: null, end: null },
         eventTypes: [],
         categories: [],
-        organizer: '',
-        location: '',
+        organizers: [], // Changed to array for multiple selection
+        locations: [],   // Changed to array for multiple selection
         costRange: { min: null, max: null }
     },
-    currentSort: 'date-desc',
-    currentView: 'grid',
-    currentPage: 1,
+    currentSort: { upcoming: 'date-asc', past: 'date-desc' }, // Separate sorts
+    currentPage: { upcoming: 1, past: 1 },
     eventsPerPage: 12,
     isLoading: false,
     useMockData: false // Flag to use mock data if API is not available
@@ -303,25 +305,26 @@ async function checkAPIAvailability() {
 async function loadRealData() {
     try {
         // Load events from API
-        const response = await fetch('http://localhost:3000/api/events');
-        const events = await response.json();
+        const eventsResponse = await window.apiClient.filterEvents({}); // Fetch all events
         
         // Load categories, locations, and organizers
-        const [categoriesResponse, locationsResponse, organizersResponse] = await Promise.all([
-            fetch('http://localhost:3000/api/categories'),
-            fetch('http://localhost:3000/api/locations'),
-            fetch('http://localhost:3000/api/organizers')
+        const [categories, locations, organizers] = await Promise.all([
+            window.apiClient.getCategories(),
+            window.apiClient.getLocations(),
+            window.apiClient.getOrganizers() // get all organizers for filter
         ]);
         
-        const categories = await categoriesResponse.json();
-        const locations = await locationsResponse.json();
-        const organizers = await organizersResponse.json();
+        AppState.events.upcoming = eventsResponse.upcoming || [];
+        AppState.events.past = eventsResponse.past || [];
+        AppState.filteredEvents.upcoming = [...AppState.events.upcoming];
+        AppState.filteredEvents.past = [...AppState.events.past];
         
-        AppState.events = events;
-        AppState.filteredEvents = events;
-        
-        // Populate filter dropdowns with real data
-        populateFilterOptions(categories, locations, organizers);
+        AppState.allCategories = categories;
+        AppState.allLocations = locations;
+        AppState.allOrganizers = organizers;
+
+        // Populate filter dropdowns/inputs with real data
+        populateFilterOptions(AppState.allCategories, AppState.allLocations, AppState.allOrganizers);
         
     } catch (error) {
         console.error('Error loading real data:', error);
@@ -331,8 +334,14 @@ async function loadRealData() {
 }
 
 function loadMockData() {
-    AppState.events = [...mockEvents];
-    AppState.filteredEvents = [...mockEvents];
+    const now = new Date();
+    const mockUpcoming = mockEvents.filter(event => new Date(`${event.start_date}T${event.start_time}`) > now);
+    const mockPast = mockEvents.filter(event => new Date(`${event.start_date}T${event.start_time}`) <= now);
+
+    AppState.events.upcoming = [...mockUpcoming];
+    AppState.events.past = [...mockPast];
+    AppState.filteredEvents.upcoming = [...mockUpcoming];
+    AppState.filteredEvents.past = [...mockPast];
     
     // Populate filter dropdowns with mock data
     const categories = ['academic', 'cultural', 'sports', 'social', 'career', 'volunteer', 'arts', 'tech'];
@@ -341,41 +350,51 @@ function loadMockData() {
         { building: 'Student Center', label: 'Student Center' },
         { building: 'Library', label: 'Library' },
         { building: 'Sports Complex', label: 'Sports Complex' },
-        { building: 'Auditorium', label: 'Auditorium' }
+        { building: 'Auditorium', label: 'Auditorium' },
+        { building: 'Online', label: 'Online'}
     ];
     const organizers = [
-        { organizer_id: 1, organizer_type: 'student' },
-        { organizer_id: 2, organizer_type: 'club' },
-        { organizer_id: 3, organizer_type: 'school' }
+        { organizer_id: 1, name: 'AI Research Club', type: 'club' },
+        { organizer_id: 2, name: 'Data Science Society', type: 'club' },
+        { organizer_id: 3, name: 'Medical Ethics Department', type: 'school' },
+        { organizer_id: 4, name: 'Tech Innovation Club', type: 'club' },
+        { organizer_id: 5, name: 'International Student Association', type: 'student' },
+        { organizer_id: 6, name: 'Environmental Science Department', type: 'school' },
+        { organizer_id: 7, name: 'Career Services', type: 'school' },
+        { organizer_id: 8, name: 'FinTech Club', type: 'club' }
     ];
     
-    populateFilterOptions(categories, locations, organizers);
+    AppState.allCategories = categories;
+    AppState.allLocations = locations;
+    AppState.allOrganizers = organizers;
+
+    populateFilterOptions(AppState.allCategories, AppState.allLocations, AppState.allOrganizers);
 }
 
 function populateFilterOptions(categories, locations, organizers) {
     // Populate category filter
-    const categoryFilter = document.getElementById('categoryFilter');
-    if (categoryFilter) {
-        categoryFilter.innerHTML = categories.map(category => 
+    const categorySelect = document.getElementById('categoryFilter');
+    if (categorySelect) {
+        categorySelect.innerHTML = categories.map(category => 
             `<option value="${category}">${category}</option>`
         ).join('');
     }
     
     // Populate location filter
-    const locationFilter = document.getElementById('locationFilter');
-    if (locationFilter) {
-        locationFilter.innerHTML = '<option value="">All Locations</option>' +
+    const locationSelect = document.getElementById('locationFilter');
+    if (locationSelect) {
+        locationSelect.innerHTML = '<option value="">All Locations</option>' +
             locations.map(location => 
-                `<option value="${location.building}">${location.label}</option>`
+                `<option value="${location.label}">${location.label}</option>`
             ).join('');
     }
     
     // Populate organizer filter
-    const organizerFilter = document.getElementById('organizerFilter');
-    if (organizerFilter) {
-        organizerFilter.innerHTML = '<option value="">All Organizers</option>' +
+    const organizerSelect = document.getElementById('organizerFilter');
+    if (organizerSelect) {
+        organizerSelect.innerHTML = '<option value="">All Organizers</option>' +
             organizers.map(organizer => 
-                `<option value="${organizer.organizer_type}">${organizer.organizer_type}</option>`
+                `<option value="${organizer.name}">${organizer.name}</option>`
             ).join('');
     }
 }
@@ -406,8 +425,8 @@ function initializeAnimations() {
 
 function animateStats() {
     const stats = [
-        { id: 'totalEvents', target: AppState.events.length, duration: 2000 },
-        { id: 'activeEvents', target: AppState.events.filter(e => new Date(e.start_date) >= new Date()).length, duration: 1500 },
+        { id: 'totalEvents', target: AppState.events.upcoming.length + AppState.events.past.length, duration: 2000 },
+        { id: 'activeEvents', target: AppState.events.upcoming.filter(e => new Date(e.start_date) >= new Date()).length, duration: 1500 },
         { id: 'totalStudents', target: 1847, duration: 2500 }
     ];
     
@@ -583,22 +602,19 @@ function handleEventTypeFilterChange() {
 
 function handleCategoryFilterChange() {
     const categorySelect = document.getElementById('categoryFilter');
-    const selectedCategories = Array.from(categorySelect.selectedOptions)
-        .map(option => option.value);
-    
-    AppState.currentFilters.categories = selectedCategories;
+    AppState.currentFilters.categories = Array.from(categorySelect.selectedOptions).map(option => option.value);
     applyFilters();
 }
 
 function handleOrganizerFilterChange() {
-    const organizer = document.getElementById('organizerFilter').value;
-    AppState.currentFilters.organizer = organizer;
+    const organizerSelect = document.getElementById('organizerFilter');
+    AppState.currentFilters.organizers = Array.from(organizerSelect.selectedOptions).map(option => option.value);
     applyFilters();
 }
 
 function handleLocationFilterChange() {
-    const location = document.getElementById('locationFilter').value;
-    AppState.currentFilters.location = location;
+    const locationSelect = document.getElementById('locationFilter');
+    AppState.currentFilters.locations = Array.from(locationSelect.selectedOptions).map(option => option.value);
     applyFilters();
 }
 
@@ -614,18 +630,21 @@ async function applyFilters() {
     showLoadingState();
     
     try {
-        let filtered = [];
+        let filteredData = { upcoming: [], past: [] };
         
         if (AppState.useMockData) {
             // Use local filtering for mock data
-            filtered = filterEventsLocally();
+            filteredData = filterEventsLocally();
         } else {
             // Use API for real data
-            filtered = await filterEventsViaAPI();
+            filteredData = await filterEventsViaAPI();
         }
         
-        AppState.filteredEvents = filtered;
-        AppState.currentPage = 1;
+        AppState.filteredEvents.upcoming = filteredData.upcoming || [];
+        AppState.filteredEvents.past = filteredData.past || [];
+        
+        AppState.currentPage.upcoming = 1;
+        AppState.currentPage.past = 1;
         
         renderEvents();
         updateResultsCount();
@@ -640,21 +659,28 @@ async function applyFilters() {
 }
 
 function filterEventsLocally() {
-    let filtered = [...AppState.events];
+    const now = new Date();
+    let filteredUpcoming = AppState.events.upcoming.filter(event => new Date(`${event.start_date}T${event.start_time}`) > now);
+    let filteredPast = AppState.events.past.filter(event => new Date(`${event.start_date}T${event.start_time}`) <= now);
     
     // Apply search filter
     if (AppState.currentFilters.search) {
         const searchTerm = AppState.currentFilters.search.toLowerCase();
-        filtered = filtered.filter(event => 
+        filteredUpcoming = filteredUpcoming.filter(event => 
             event.title.toLowerCase().includes(searchTerm) ||
             event.description.toLowerCase().includes(searchTerm) ||
-            event.organizer.name.toLowerCase().includes(searchTerm)
+            (event.organizer && event.organizer.some(org => org.name.toLowerCase().includes(searchTerm)))
+        );
+        filteredPast = filteredPast.filter(event => 
+            event.title.toLowerCase().includes(searchTerm) ||
+            event.description.toLowerCase().includes(searchTerm) ||
+            (event.organizer && event.organizer.some(org => org.name.toLowerCase().includes(searchTerm)))
         );
     }
     
     // Apply date range filter
     if (AppState.currentFilters.dateRange.start || AppState.currentFilters.dateRange.end) {
-        filtered = filtered.filter(event => {
+        const filterByDate = (event) => {
             const eventDate = new Date(event.start_date);
             const startDate = AppState.currentFilters.dateRange.start ? new Date(AppState.currentFilters.dateRange.start) : null;
             const endDate = AppState.currentFilters.dateRange.end ? new Date(AppState.currentFilters.dateRange.end) : null;
@@ -663,44 +689,42 @@ function filterEventsLocally() {
             if (endDate && eventDate > endDate) return false;
             
             return true;
-        });
+        };
+        filteredUpcoming = filteredUpcoming.filter(filterByDate);
+        filteredPast = filteredPast.filter(filterByDate);
     }
     
     // Apply event type filter
     if (AppState.currentFilters.eventTypes.length > 0) {
-        filtered = filtered.filter(event => 
-            AppState.currentFilters.eventTypes.includes(event.event_type)
-        );
+        const filterByType = (event) => AppState.currentFilters.eventTypes.includes(event.event_type);
+        filteredUpcoming = filteredUpcoming.filter(filterByType);
+        filteredPast = filteredPast.filter(filterByType);
     }
     
     // Apply category filter
     if (AppState.currentFilters.categories.length > 0) {
-        filtered = filtered.filter(event => 
-            event.categories.some(category => 
-                AppState.currentFilters.categories.includes(category)
-            )
-        );
+        const filterByCategory = (event) => event.categories.some(category => AppState.currentFilters.categories.includes(category));
+        filteredUpcoming = filteredUpcoming.filter(filterByCategory);
+        filteredPast = filteredPast.filter(filterByCategory);
     }
     
     // Apply organizer filter
-    if (AppState.currentFilters.organizer) {
-        filtered = filtered.filter(event => 
-            event.organizer.type === AppState.currentFilters.organizer
-        );
+    if (AppState.currentFilters.organizers.length > 0) {
+        const filterByOrganizer = (event) => event.organizer.some(org => AppState.currentFilters.organizers.includes(org.name));
+        filteredUpcoming = filteredUpcoming.filter(filterByOrganizer);
+        filteredPast = filteredPast.filter(filterByOrganizer);
     }
     
     // Apply location filter
-    if (AppState.currentFilters.location) {
-        filtered = filtered.filter(event => 
-            event.location.building.toLowerCase().includes(
-                AppState.currentFilters.location.toLowerCase()
-            )
-        );
+    if (AppState.currentFilters.locations.length > 0) {
+        const filterByLocation = (event) => AppState.currentFilters.locations.includes(event.location.label);
+        filteredUpcoming = filteredUpcoming.filter(filterByLocation);
+        filteredPast = filteredPast.filter(filterByLocation);
     }
     
     // Apply cost range filter
     if (AppState.currentFilters.costRange.min !== null || AppState.currentFilters.costRange.max !== null) {
-        filtered = filtered.filter(event => {
+        const filterByCost = (event) => {
             const minCost = AppState.currentFilters.costRange.min;
             const maxCost = AppState.currentFilters.costRange.max;
             
@@ -708,10 +732,12 @@ function filterEventsLocally() {
             if (maxCost !== null && event.cost > maxCost) return false;
             
             return true;
-        });
+        };
+        filteredUpcoming = filteredUpcoming.filter(filterByCost);
+        filteredPast = filteredPast.filter(filterByCost);
     }
     
-    return filtered;
+    return { upcoming: filteredUpcoming, past: filteredPast };
 }
 
 async function filterEventsViaAPI() {
@@ -719,19 +745,13 @@ async function filterEventsViaAPI() {
         const filters = {
             start_date: AppState.currentFilters.dateRange.start,
             end_date: AppState.currentFilters.dateRange.end,
-            event_type: AppState.currentFilters.eventTypes.length > 0 ? AppState.currentFilters.eventTypes[0] : null,
+            event_type: AppState.currentFilters.eventTypes.length > 0 ? AppState.currentFilters.eventTypes[0] : null, // Send only the first selected type
             categories: AppState.currentFilters.categories,
-            organizers: [], // You can expand this to include organizer filtering
-            locations: AppState.currentFilters.location ? [AppState.currentFilters.location] : []
+            organizers: AppState.currentFilters.organizers,
+            locations: AppState.currentFilters.locations
         };
         
-        const response = await fetch('http://localhost:3000/api/events/filter', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(filters)
-        });
+        const response = await window.apiClient.filterEvents(filters);
         
         if (!response.ok) throw new Error('Failed to filter events');
         
@@ -751,8 +771,8 @@ function clearAllFilters() {
         dateRange: { start: null, end: null },
         eventTypes: [],
         categories: [],
-        organizer: '',
-        location: '',
+        organizers: [],
+        locations: [],
         costRange: { min: null, max: null }
     };
     
@@ -760,8 +780,15 @@ function clearAllFilters() {
     document.getElementById('startDate').value = '';
     document.getElementById('endDate').value = '';
     document.getElementById('globalSearch').value = '';
-    document.getElementById('organizerFilter').value = '';
-    document.getElementById('locationFilter').value = '';
+
+    // Clear multi-selects
+    const categorySelect = document.getElementById('categoryFilter');
+    if (categorySelect) Array.from(categorySelect.options).forEach(option => option.selected = false);
+    const organizerSelect = document.getElementById('organizerFilter');
+    if (organizerSelect) Array.from(organizerSelect.options).forEach(option => option.selected = false);
+    const locationSelect = document.getElementById('locationFilter');
+    if (locationSelect) Array.from(locationSelect.options).forEach(option => option.selected = false);
+
     document.getElementById('minCost').value = '';
     document.getElementById('maxCost').value = '';
     
@@ -770,17 +797,11 @@ function clearAllFilters() {
         cb.checked = false;
     });
     
-    // Clear category selection
-    const categoryFilter = document.getElementById('categoryFilter');
-    if (categoryFilter) {
-        Array.from(categoryFilter.options).forEach(option => {
-            option.selected = false;
-        });
-    }
-    
     // Reset filtered events
-    AppState.filteredEvents = [...AppState.events];
-    AppState.currentPage = 1;
+    AppState.filteredEvents.upcoming = [...AppState.events.upcoming];
+    AppState.filteredEvents.past = [...AppState.events.past];
+    AppState.currentPage.upcoming = 1;
+    AppState.currentPage.past = 1;
     
     renderEvents();
     updateResultsCount();
@@ -815,12 +836,12 @@ function updateActiveFiltersDisplay() {
         activeFilters.push({ type: 'Categories', value: AppState.currentFilters.categories.join(', ') });
     }
     
-    if (AppState.currentFilters.organizer) {
-        activeFilters.push({ type: 'Organizer', value: AppState.currentFilters.organizer });
+    if (AppState.currentFilters.organizers.length > 0) {
+        activeFilters.push({ type: 'Organizers', value: AppState.currentFilters.organizers.join(', ') });
     }
     
-    if (AppState.currentFilters.location) {
-        activeFilters.push({ type: 'Location', value: AppState.currentFilters.location });
+    if (AppState.currentFilters.locations.length > 0) {
+        activeFilters.push({ type: 'Locations', value: AppState.currentFilters.locations.join(', ') });
     }
     
     if (AppState.currentFilters.costRange.min !== null || AppState.currentFilters.costRange.max !== null) {
@@ -857,97 +878,66 @@ function initializeSearch() {
 
 // Event display functionality
 function initializeEventDisplay() {
-    // Sort controls
-    const sortBySelect = document.getElementById('sortBy');
-    if (sortBySelect) {
-        sortBySelect.addEventListener('change', handleSortChange);
+    // Sort controls for upcoming events
+    const sortByUpcomingSelect = document.getElementById('sortByUpcoming');
+    if (sortByUpcomingSelect) {
+        sortByUpcomingSelect.addEventListener('change', (e) => handleSortChange(e, 'upcoming'));
     }
-    
-    // View toggle controls
-    const gridViewBtn = document.getElementById('gridView');
-    const listViewBtn = document.getElementById('listView');
-    
-    if (gridViewBtn && listViewBtn) {
-        gridViewBtn.addEventListener('click', () => setViewMode('grid'));
-        listViewBtn.addEventListener('click', () => setViewMode('list'));
+
+    // Sort controls for past events
+    const sortByPastSelect = document.getElementById('sortByPast');
+    if (sortByPastSelect) {
+        sortByPastSelect.addEventListener('change', (e) => handleSortChange(e, 'past'));
     }
-    
-    // Load more button
-    const loadMoreBtn = document.getElementById('loadMore');
-    if (loadMoreBtn) {
-        loadMoreBtn.addEventListener('click', loadMoreEvents);
-    }
+
+    // Load more button (if still needed, considering separate sections)
+    // const loadMoreBtn = document.getElementById('loadMore');
+    // if (loadMoreBtn) {
+    //     loadMoreBtn.addEventListener('click', loadMoreEvents);
+    // }
 }
 
-function handleSortChange(e) {
-    AppState.currentSort = e.target.value;
+function handleSortChange(e, section) {
+    AppState.currentSort[section] = e.target.value;
     renderEvents();
-}
-
-function setViewMode(mode) {
-    AppState.currentView = mode;
-    
-    // Update button states
-    const gridViewBtn = document.getElementById('gridView');
-    const listViewBtn = document.getElementById('listView');
-    
-    if (mode === 'grid') {
-        gridViewBtn.classList.add('bg-white', 'shadow-sm');
-        listViewBtn.classList.remove('bg-white', 'shadow-sm');
-    } else {
-        listViewBtn.classList.add('bg-white', 'shadow-sm');
-        gridViewBtn.classList.remove('bg-white', 'shadow-sm');
-    }
-    
-    renderEvents();
-}
-
-function loadMoreEvents() {
-    AppState.currentPage++;
-    renderEvents(true);
 }
 
 function renderEvents(append = false) {
-    const eventsGrid = document.getElementById('eventsGrid');
+    const upcomingEventsGrid = document.getElementById('upcomingEventsGrid');
+    const pastEventsGrid = document.getElementById('pastEventsGrid');
     const emptyState = document.getElementById('emptyState');
-    const loadMoreBtn = document.getElementById('loadMore');
-    
-    if (!eventsGrid) return;
-    
-    // Sort events
-    const sortedEvents = sortEvents(AppState.filteredEvents, AppState.currentSort);
-    
-    // Paginate events
-    const startIndex = (AppState.currentPage - 1) * AppState.eventsPerPage;
-    const endIndex = startIndex + AppState.eventsPerPage;
-    const eventsToShow = sortedEvents.slice(0, endIndex);
-    
-    if (eventsToShow.length === 0) {
-        eventsGrid.innerHTML = '';
-        if (emptyState) emptyState.classList.remove('hidden');
-        if (loadMoreBtn) loadMoreBtn.classList.add('hidden');
-        return;
-    }
-    
-    if (emptyState) emptyState.classList.add('hidden');
-    
-    // Check if there are more events to load
-    if (endIndex >= sortedEvents.length) {
-        if (loadMoreBtn) loadMoreBtn.classList.add('hidden');
+
+    if (!upcomingEventsGrid || !pastEventsGrid) return;
+
+    // Render upcoming events
+    const sortedUpcomingEvents = sortEvents(AppState.filteredEvents.upcoming, AppState.currentSort.upcoming);
+    const upcomingEventsToShow = sortedUpcomingEvents.slice(0, AppState.currentPage.upcoming * AppState.eventsPerPage);
+    upcomingEventsGrid.innerHTML = upcomingEventsToShow.map(event => createEventCard(event)).join('');
+
+    // Render past events
+    const sortedPastEvents = sortEvents(AppState.filteredEvents.past, AppState.currentSort.past);
+    const pastEventsToShow = sortedPastEvents.slice(0, AppState.currentPage.past * AppState.eventsPerPage);
+    pastEventsGrid.innerHTML = pastEventsToShow.map(event => createEventCard(event)).join('');
+
+    // Update empty state visibility
+    if (AppState.filteredEvents.upcoming.length === 0 && AppState.filteredEvents.past.length === 0) {
+        emptyState.classList.remove('hidden');
     } else {
-        if (loadMoreBtn) loadMoreBtn.classList.remove('hidden');
+        emptyState.classList.add('hidden');
     }
-    
-    // Render events
-    const eventsHTML = eventsToShow.map(event => createEventCard(event)).join('');
-    
-    if (append) {
-        eventsGrid.insertAdjacentHTML('beforeend', eventsHTML);
-    } else {
-        eventsGrid.innerHTML = eventsHTML;
-    }
-    
-    // Add event listeners to new cards
+
+    // Update load more button visibility (if keeping it for future pagination within sections)
+    // const loadMoreBtn = document.getElementById('loadMore');
+    // if (loadMoreBtn) {
+    //     const hasMoreUpcoming = AppState.currentPage.upcoming * AppState.eventsPerPage < AppState.filteredEvents.upcoming.length;
+    //     const hasMorePast = AppState.currentPage.past * AppState.eventsPerPage < AppState.filteredEvents.past.length;
+    //     if (hasMoreUpcoming || hasMorePast) {
+    //         loadMoreBtn.classList.remove('hidden');
+    //     } else {
+    //         loadMoreBtn.classList.add('hidden');
+    //     }
+    // }
+
     addEventCardListeners();
 }
 
@@ -970,7 +960,7 @@ function sortEvents(events, sortType) {
     }
 }
 
-function createEventCard(event) {
+function createEventCard(event, type = 'upcoming') {
     const eventDate = new Date(event.start_date);
     const formattedDate = eventDate.toLocaleDateString('en-US', { 
         month: 'short', 
@@ -989,54 +979,52 @@ function createEventCard(event) {
     };
     
     const eventTypeColor = eventTypeColors[event.event_type] || 'bg-gray-100 text-gray-800';
+
+    const imageUrl = event.flyer ? `data:image/jpeg;base64,${event.flyer}` : 'resources/hero-campus-events.jpg';
+
+    const organizerNames = event.organizer && event.organizer.length > 0 
+        ? event.organizer.map(org => `<a href="organizer-details.html?id=${org.organizer_id}" class="hover:underline">${org.name}</a>`).join(', ') 
+        : 'Various Organizers';
+
+    const applicationStatus = event.application_required 
+        ? '<span class="text-red-600">Application Required</span>' 
+        : '<span class="text-green-600">No Application</span>';
+
+    const locationDisplay = event.online_link 
+        ? `<a href="${event.online_link}" target="_blank" class="text-blue-600 hover:underline">Online Event</a>`
+        : `${event.location.building || ''}, ${event.location.label || 'TBD'}`.trim();
     
     return `
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden card-hover cursor-pointer" 
-             data-event-id="${event.event_id}">
-            <div class="h-48 bg-gradient-to-br from-teal-400 to-blue-500 relative">
+        <a href="event-details.html?id=${event.event_id}" class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden card-hover block">
+            <div class="h-48 relative" style="background-image: url('${imageUrl}'); background-size: cover; background-position: center;">
                 <div class="absolute top-4 left-4">
-                    <span class="event-badge ${eventTypeColor} px-3 py-1 rounded-full text-sm font-medium">
+                    <span class="event-type-badge ${eventTypeColor} px-3 py-1 rounded-full text-sm font-medium">
                         ${event.event_type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
                     </span>
                 </div>
-                <div class="absolute top-4 right-4">
-                    <button class="save-event-btn text-white hover:text-red-400 transition-colors" 
-                            data-event-id="${event.event_id}">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                                  d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
-                        </svg>
-                    </button>
-                </div>
             </div>
             <div class="p-6">
-                <div class="flex items-start justify-between mb-3">
-                    <h3 class="text-lg font-semibold text-gray-800 line-clamp-2">${event.title}</h3>
-                </div>
-                
+                <h3 class="text-lg font-semibold text-gray-800 mb-2 line-clamp-2">${event.title}</h3>
                 <p class="text-gray-600 text-sm mb-4 line-clamp-2">${event.description}</p>
                 
                 <div class="space-y-2 mb-4">
                     <div class="flex items-center text-sm text-gray-500">
                         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                                  d="M8 7V3a2 2 0 012-2h4a2 2 0 012 2v4m-6 0V6a2 2 0 012-2h4a2 2 0 012 2v1m-6 0h6m-6 0l-1 1v4a2 2 0 01-2 2H6a2 2 0 01-2-2V8l-1-1m1 0V7a2 2 0 012-2h4a2 2 0 012 2v1"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3a2 2 0 012-2h4a2 2 0 012 2v4m-6 0V6a2 2 0 012-2h4a2 2 0 012 2v1m-6 0h6m-6 0l-1 1v4a2 2 0 01-2 2H6a2 2 0 01-2-2V8l-1-1m1 0V7a2 2 0 012-2h4a2 2 0 012 2v1"></path>
                         </svg>
-                        ${event.location.label}
+                        ${locationDisplay}
                     </div>
                     <div class="flex items-center text-sm text-gray-500">
                         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                         </svg>
                         ${formattedDate} • ${formattedTime}
                     </div>
                     <div class="flex items-center text-sm text-gray-500">
                         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
                         </svg>
-                        ${event.organizer.name}
+                        ${organizerNames}
                     </div>
                 </div>
                 
@@ -1046,10 +1034,10 @@ function createEventCard(event) {
                             `<span class="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs">${category}</span>`
                         ).join('')}
                     </div>
-                    <span class="text-sm font-semibold ${costClass}">${costDisplay}</span>
+                    <span class="text-sm font-semibold ${costClass}">${costDisplay} ${applicationStatus}</span>
                 </div>
             </div>
-        </div>
+        </a>
     `;
 }
 
@@ -1086,45 +1074,31 @@ function addEventCardListeners() {
 }
 
 function showEventDetails(eventId) {
-    const event = AppState.events.find(e => e.event_id === eventId);
-    if (!event) return;
-    
-    // For now, navigate to the event details page
-    // In a real app, this would open a modal or navigate to a detailed view
+    // Fetch event details from the backend using the API client
     window.location.href = `event-details.html?id=${eventId}`;
 }
 
 function toggleSaveEvent(eventId) {
     // Simulate saving/unsaving event
-    const btn = document.querySelector(`[data-event-id="${eventId}"] .save-event-btn svg`);
-    if (!btn) return;
-    
-    const isSaved = btn.classList.contains('text-red-500');
-    
-    if (isSaved) {
-        btn.classList.remove('text-red-500');
-        btn.classList.add('text-white');
-        showNotification('Event removed from saved', 'info');
-    } else {
-        btn.classList.remove('text-white');
-        btn.classList.add('text-red-500');
-        showNotification('Event saved!', 'success');
-    }
+    // This functionality will be implemented with API calls in a later task.
+    showNotification('Save Event feature coming soon!', 'info');
 }
 
 function updateResultsCount() {
     const resultsCount = document.getElementById('resultsCount');
     if (!resultsCount) return;
     
-    const total = AppState.filteredEvents.length;
-    const showing = Math.min(total, AppState.currentPage * AppState.eventsPerPage);
+    const totalUpcoming = AppState.filteredEvents.upcoming.length;
+    const totalPast = AppState.filteredEvents.past.length;
+    const showingUpcoming = Math.min(totalUpcoming, AppState.currentPage.upcoming * AppState.eventsPerPage);
+    const showingPast = Math.min(totalPast, AppState.currentPage.past * AppState.eventsPerPage);
     
-    if (total === 0) {
+    if (totalUpcoming === 0 && totalPast === 0) {
         resultsCount.textContent = 'No events found';
-    } else if (total === AppState.events.length) {
-        resultsCount.textContent = `Showing all ${total} events`;
+    } else if (totalUpcoming === AppState.events.upcoming.length && totalPast === AppState.events.past.length) {
+        resultsCount.textContent = `Showing all ${totalUpcoming + totalPast} events`;
     } else {
-        resultsCount.textContent = `Showing ${total} filtered events`;
+        resultsCount.textContent = `Showing ${totalUpcoming + totalPast} filtered events`;
     }
 }
 

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - DKU Events</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-gray-50 flex items-center justify-center">
+    <div class="w-full max-w-md bg-white rounded-lg shadow p-8">
+        <h1 class="text-2xl font-semibold mb-4">Login</h1>
+        <form id="loginForm" class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Email</label>
+                <input id="email" type="email" required class="mt-1 block w-full px-3 py-2 border rounded-md">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Password</label>
+                <input id="password" type="password" required class="mt-1 block w-full px-3 py-2 border rounded-md">
+            </div>
+
+            <div class="flex items-center justify-between">
+                <button type="submit" class="btn-primary px-4 py-2 rounded text-white">Log in</button>
+                <a href="signup.html" class="text-sm text-teal-600 hover:underline">Sign up</a>
+            </div>
+        </form>
+        <p id="message" class="text-sm text-red-600 mt-3"></p>
+    </div>
+
+    <script src="auth.js"></script>
+    <script>
+        // If already logged in, redirect to index
+        (function() {
+            try {
+                const stored = localStorage.getItem('dku_user');
+                if (stored) {
+                    window.location.href = 'index.html';
+                }
+            } catch (e) {
+                // ignore
+            }
+        })();
+
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+            const messageEl = document.getElementById('message');
+            messageEl.textContent = '';
+
+            const res = await postJson('/api/login', { email, password });
+            if (!res.ok) {
+                messageEl.textContent = res.json && res.json.message ? res.json.message : (res.json && res.json.error ? res.json.error : 'Login failed');
+                return;
+            }
+
+            const userId = res.json.user_id;
+            if (!userId) {
+                messageEl.textContent = 'Invalid credentials';
+                return;
+            }
+
+            // fetch user profile
+            const base = (typeof baseApi !== 'undefined' ? baseApi : '');
+            try {
+                const profileRes = await fetch(base + '/api/users/' + userId);
+                const profile = await profileRes.json();
+                if (!profileRes.ok) {
+                    messageEl.textContent = profile.message || profile.error || 'Failed to load profile';
+                    return;
+                }
+                localStorage.setItem('dku_user_id', userId);
+                localStorage.setItem('dku_user', JSON.stringify(profile));
+                // redirect to index (main landing)
+                window.location.href = 'index.html';
+            } catch (err) {
+                messageEl.textContent = 'Failed to fetch profile: ' + err.message;
+            }
+        });
+    </script>
+</body>
+</html>
