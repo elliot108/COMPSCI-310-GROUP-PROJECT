@@ -282,6 +282,7 @@ async function initializeApp() {
     initializeEventDisplay();
     initializeSearch();
     initializeParticleBackground();
+    initializeSQLViewer();
     
     // Initial render
     renderEvents();
@@ -1175,17 +1176,67 @@ function showNotification(message, type = 'info') {
     }, 3000);
 }
 
-// Utility functions
-function scrollToEvents() {
-    const eventsSection = document.querySelector('main');
-    if (eventsSection) {
-        eventsSection.scrollIntoView({ behavior: 'smooth' });
+// Initialize SQL viewer (call from initializeApp or DOMContentLoaded)
+function initializeSQLViewer() {
+    const showBtn = document.getElementById('showSQLBtn');
+    const modal = document.getElementById('sqlModal');
+    const closeBtn = document.getElementById('closeSqlBtn');
+    const sqlContentEl = document.getElementById('sqlContent');
+    const copyBtn = document.getElementById('copySqlBtn');
+    const downloadBtn = document.getElementById('downloadSqlBtn');
+
+    if (!showBtn || !modal || !sqlContentEl) return;
+
+    async function openModal() {
+        showLoadingState();
+        const data = await window.apiClient.getUserPreferenceSQL(); // [`APIClient.getUserPreferenceSQL`](api-client.js)
+        hideLoadingState();
+        if (!data) {
+            showNotification('Failed to load SQL file', 'error');
+            return;
+        }
+        sqlContentEl.textContent = data.content || '';
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
     }
+
+    function closeModal() {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+
+    showBtn.addEventListener('click', openModal);
+    closeBtn && closeBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+    });
+
+    copyBtn && copyBtn.addEventListener('click', async () => {
+        try {
+            await navigator.clipboard.writeText(sqlContentEl.textContent);
+            showNotification('SQL copied to clipboard', 'success');
+        } catch (err) {
+            showNotification('Copy failed', 'error');
+        }
+    });
+
+    downloadBtn && downloadBtn.addEventListener('click', () => {
+        const blob = new Blob([sqlContentEl.textContent], { type: 'text/sql' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'user_PReference.sql';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+    });
 }
 
-function showCreateEvent() {
-    showNotification('Create Event feature coming soon!', 'info');
-}
+// call during app init (if you already have initializeApp, add this call there)
+document.addEventListener('DOMContentLoaded', () => {
+    if (typeof initializeSQLViewer === 'function') initializeSQLViewer();
+});
 
 // Export functions for global access
 window.scrollToEvents = scrollToEvents;
