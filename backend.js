@@ -17,7 +17,27 @@ const dbConfig = {
     port: 3306,
     user: 'root', // Update with your MySQL username
     password: 'Yrycs584!', // Update with your MySQL password
-    database: 'dku_event_system'
+    database: 'dku_event_system',
+
+    connectionLimit: 10,
+    waitForConnections: true,
+    
+    // FORCE autocommit for all connections
+    sessionVariables: {
+        'autocommit': 'ON'
+    },
+    
+    // Also add these
+    charset: 'utf8mb4',
+    timezone: 'local',
+    multipleStatements: false,
+    
+    // IMPORTANT: Set connection flag to enable autocommit
+    flags: [
+        '-FOUND_ROWS',  // Return found rows instead of changed rows
+        '-INTERACTIVE', // Don't use interactive client
+        '-MULTI_STATEMENTS' // Disable multiple statements for safety
+    ].join(',')
 };
 
 // Create connection pool

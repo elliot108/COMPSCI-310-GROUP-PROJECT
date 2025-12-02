@@ -218,7 +218,6 @@ function getCategoriesJson() {
 
 async function handleFormSubmit(e) {
     e.preventDefault();
-    data.cost = data.cost === '' ? 0 : parseInt(data.cost);
     
     // Update JSON hidden fields
     document.getElementById('collaboratingOrganizersJson').value = getCollaboratorsJson();
@@ -232,6 +231,7 @@ async function handleFormSubmit(e) {
     data.max_participants = data.max_participants === '' ? null : parseInt(data.max_participants);
     data.application_required = parseInt(data.application_required);
     data.organizer_id = parseInt(data.organizer_id);
+    data.cost = data.cost === '' ? 0 : parseInt(data.cost);
     
     // Parse JSON fields
     try {
@@ -455,7 +455,7 @@ function resetForm() {
     
     const costField = document.querySelector('[name="cost"]');
     if (costField) costField.value = 0;
-    
+
     if (applicationRequired) applicationRequired.value = '0';
     if (eventType) {
         eventType.value = 'on_campus';
