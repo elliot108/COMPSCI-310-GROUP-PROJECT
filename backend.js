@@ -13,10 +13,10 @@ app.use(express.json());
 // Database connection configuration
 const dbConfig = {
 
-    host: '127.0.0.1',
+    host: 'localhost',
     port: 3306,
     user: 'root', // Update with your MySQL username
-    password: 'your password', // Update with your MySQL password
+    password: 'Yrycs584!', // Update with your MySQL password
     database: 'dku_event_system',
 
     connectionLimit: 10,
@@ -1095,9 +1095,37 @@ app.post('/api/signup/attendee', async (req, res) => {
             // current session sql_mode to an empty string so strict-mode doesn't block inserts
             // for columns without defaults while we run the stored procedure.
             await connection.query('SET SESSION sql_mode = ""');
+            // Get the user_id that was just created
+        const [userRows] = await connection.execute('SELECT user_id FROM Users WHERE email = ? LIMIT 1', [email]);
+        const userId = userRows[0].user_id;
+        
+        // Save preferences
+        if (categories && Array.isArray(categories) && categories.length > 0) {
+            const categoryValues = categories.map(cat_id => [userId, cat_id]);
+            await connection.query(
+                'INSERT IGNORE INTO User_categories (user_id, category_id) VALUES ?',
+                [categoryValues]
+            );
+            message = message + ' Categories saved.';
+        }
+        
+        if (clubs && Array.isArray(clubs) && clubs.length > 0) {
+            const clubValues = clubs.map(club_id => [userId, club_id, 1]);
+            await connection.query(
+                'INSERT IGNORE INTO User_organizers_notification (user_id, organizer_id, remind_required) VALUES ?',
+                [clubValues]
+            );
+            message = message + ' Club notifications saved.';
+        }
+        
+        return res.json({ message, user_id: userId });
         } catch (modeErr) {
             console.debug('Could not set session sql_mode to empty string:', modeErr.message);
         }
+        finally {
+            connection.release();
+        }
+        
 
         // Figure out how many IN params the stored procedure expects and call accordingly
         const inCount = await getProcedureInParamCount('sp_signup_attendee', connection);
@@ -1159,7 +1187,7 @@ app.post('/api/signup/attendee', async (req, res) => {
 });
 
 app.post('/api/signup/club', async (req, res) => {
-    const { email, password, club_name, club_url, contact_email, yearFounded } = req.body;
+    const { email, password, club_name, club_url, contact_email, yearFounded} = req.body;
     if (!email || !password) return res.status(400).json({ error: 'Email and password are required.' });
 
     const connection = await poolMulti.getConnection();
@@ -1170,7 +1198,7 @@ app.post('/api/signup/club', async (req, res) => {
         } catch (modeErr) {
             console.debug('Could not set session sql_mode to empty string for club signup:', modeErr.message);
         }
-        await connection.query('CALL sp_signup_club(?, ?, ?, ?, ?, ?, @p_error_message)', [email, password, club_name || null, club_url || null, contact_email || null, yearFounded || null]);
+        await connection.query('CALL sp_signup_club(?, ?, ?, ?, ?, ?, ?, @p_error_message)', [email, password, club_name || null, club_url || null, contact_email || null, yearFounded || null]);
         const [outRows] = await connection.query('SELECT @p_error_message AS message');
         let message = outRows && outRows[0] ? outRows[0].message : 'Unknown result';
 
@@ -1228,7 +1256,7 @@ app.post('/api/signup/school', async (req, res) => {
 });
 
 app.post('/api/signup/student', async (req, res) => {
-    const { email, password, first_name, last_name, netId, gradYear, major } = req.body;
+    const { email, password, first_name, last_name, netId, grad_year, major } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'Email and password are required.' });
 
     const connection = await poolMulti.getConnection();
@@ -1244,7 +1272,7 @@ app.post('/api/signup/student', async (req, res) => {
         try {
             // Decide how many IN params the procedure expects and call accordingly
             const inCount = await getProcedureInParamCount('sp_signup_student_organizer', connection);
-            const optionalFields = [first_name || null, last_name || null, netId || null, gradYear || null, major || null];
+            const optionalFields = [first_name || null, last_name || null, netId || null, grad_year || null, major || null];
 
             if (inCount === null) {
                 // Unknown signature: attempt longest to shortest
@@ -1331,3 +1359,40 @@ async function startServer() {
 startServer().catch(console.error);
 
 module.exports = app;
+
+// NEW: Save user preferences after signup
+app.post('/api/save-preferences', async (req, res) => {
+    const { user_id, categories, clubs } = req.body;
+    
+    if (!user_id) return res.status(400).json({ error: 'User ID is required' });
+
+    const connection = await pool.getConnection();
+    try {
+        // Save category preferences
+        if (categories && Array.isArray(categories) && categories.length > 0) {
+            // Create array of [user_id, category_id] pairs
+            const categoryValues = categories.map(cat_id => [user_id, cat_id]);
+            await connection.query(
+                'INSERT IGNORE INTO User_categories (user_id, category_id) VALUES ?',
+                [categoryValues]
+            );
+        }
+        
+        // Save club notifications
+        if (clubs && Array.isArray(clubs) && clubs.length > 0) {
+            // Create array of [user_id, organizer_id, remind_required] pairs
+            const clubValues = clubs.map(club_id => [user_id, club_id, 1]); // 1 = remind_required
+            await connection.query(
+                'INSERT IGNORE INTO User_organizers_notification (user_id, organizer_id, remind_required) VALUES ?',
+                [clubValues]
+            );
+        }
+        
+        res.json({ success: true, message: 'Preferences saved successfully' });
+    } catch (error) {
+        console.error('Error saving preferences:', error);
+        res.status(500).json({ error: 'Failed to save preferences' });
+    } finally {
+        connection.release();
+    }
+});
