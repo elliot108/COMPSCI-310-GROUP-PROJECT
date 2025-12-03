@@ -75,6 +75,7 @@
             <h1 id="organizer-name" class="font-display text-4xl font-bold text-gray-900 mb-4"></h1>
             <p id="organizer-type" class="text-gray-600 text-lg mb-2"></p>
             <p id="organizer-email" class="text-gray-600 mb-6"></p>
+            <div id="joinClubArea" class="mb-4"></div>
             <p id="organizer-details" class="text-gray-700 leading-relaxed mb-8"></p>
 
             <section class="mb-8">
@@ -147,6 +148,58 @@
                 `).join('');
             } else {
                 organizerEventsContainer.innerHTML = '<p class="text-gray-600">No events found for this organizer.</p>';
+            }
+
+            // If this organizer is a club, show Join Club button conditionally
+            const joinClubArea = document.getElementById('joinClubArea');
+            if (organizer.type === 'club') {
+                // Determine current user
+                const storedUser = localStorage.getItem('dku_user');
+                const attendeeId = localStorage.getItem('dku_user_id');
+                let isAttendee = false;
+                try {
+                    if (storedUser) {
+                        const profile = JSON.parse(storedUser);
+                        if (profile && profile.user_type && profile.user_type.toLowerCase().includes('attendee')) isAttendee = true;
+                    }
+                } catch (err) {
+                    isAttendee = false;
+                }
+
+                // Only show join button for attendee or attendee+organizer
+                if (isAttendee && attendeeId) {
+                    // Check membership
+                    const check = await window.apiClient.checkClubMembership(organizer.organizer_id, parseInt(attendeeId));
+                    const joined = check && check.joined;
+
+                    if (joined) {
+                        joinClubArea.innerHTML = `<button class="text-sm bg-gray-400 text-white px-3 py-2 rounded-md" disabled>Already joined this club</button>`;
+                    } else {
+                        joinClubArea.innerHTML = `<button id="joinClubBtn" class="text-sm bg-teal-600 text-white px-3 py-2 rounded-md">Join Club</button>`;
+                        document.getElementById('joinClubBtn').addEventListener('click', async () => {
+                            try {
+                                const payload = { organizer_id: parseInt(organizer.organizer_id), attendee_id: parseInt(attendeeId) };
+                                const res = await window.apiClient.joinClub(payload);
+                                // res should be { ok: boolean, status, json }
+                                if (res && res.ok && res.json && res.json.success) {
+                                    joinClubArea.innerHTML = `<button class="text-sm bg-gray-400 text-white px-3 py-2 rounded-md" disabled>Already joined this club</button>`;
+                                    alert('Joined club successfully');
+                                } else {
+                                    // report server error if present
+                                    let reason = 'Unknown error';
+                                    if (res && res.json && (res.json.error || res.json.message)) reason = res.json.error || res.json.message;
+                                    else if (res && res.error) reason = res.error;
+                                    alert('Failed to join club: ' + reason);
+                                }
+                            } catch (err) {
+                                alert('Failed to join club: ' + err.message);
+                            }
+                        });
+                    }
+                } else {
+                    // not allowed to join (not attendee)
+                    joinClubArea.innerHTML = '';
+                }
             }
         });
     </script>
