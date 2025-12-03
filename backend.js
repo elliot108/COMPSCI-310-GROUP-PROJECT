@@ -12,11 +12,32 @@ app.use(express.json());
 
 // Database connection configuration
 const dbConfig = {
+
     host: '127.0.0.1',
     port: 3306,
     user: 'root', // Update with your MySQL username
     password: 'Iam@qu33r', // Update with your MySQL password
-    database: 'dku_event_system'
+    database: 'dku_event_system',
+
+    connectionLimit: 10,
+    waitForConnections: true,
+    
+    // FORCE autocommit for all connections
+    sessionVariables: {
+        'autocommit': 'ON'
+    },
+    
+    // Also add these
+    charset: 'utf8mb4',
+    timezone: 'local',
+    multipleStatements: false,
+    
+    // IMPORTANT: Set connection flag to enable autocommit
+    flags: [
+        '-FOUND_ROWS',  // Return found rows instead of changed rows
+        '-INTERACTIVE', // Don't use interactive client
+        '-MULTI_STATEMENTS' // Disable multiple statements for safety
+    ].join(',')
 };
 
 // Create connection pool
@@ -177,6 +198,111 @@ app.get('/api/events', async (req, res) => {
     } catch (error) {
         console.error('Error fetching events:', error);
         res.status(500).json({ error: 'Failed to fetch events' });
+    }
+});
+
+// Create Event API
+app.post('/api/events', async (req, res) => {
+    console.log('📥 Received create event request:', req.body);
+    
+    try {
+        // Extract ALL parameters that the procedure expects
+        const {
+            title, description, perks, max_participants, application_required,
+            application_link, application_deadline, flyer_url, event_type, online_link,
+            building, label, start_date, end_date, start_time, end_time, cost,
+            organizer_id, collaborating_organizers, category_ids
+        } = req.body;
+
+        const finalMaxParticipants = max_participants === '' ? null : parseInt(max_participants);
+        const finalCost = cost === '' ? 0 : parseInt(cost);  // Default to 0 if empty
+
+        // IMPORTANT: Prepare ALL 19 parameters in EXACT order the procedure expects
+        // Based on your procedure definition: uploadEvent(
+        //   newTitle, newDescription, newPerks, newMax_participants, newApplication_required,
+        //   newApplication_link, newApplication_deadline, newFlyer, newEvent_type, newOnline_link,
+        //   newBuilding, newLabel, newStartDate, newEndDate, newStartTime, newEndTime,
+        //   organizer_id_param, collaborating_organizers, category_ids, OUT newEvent_id
+        // )
+        
+        const procedureParams = [
+            // 1-19: IN parameters
+            title || '',                    // 1. newTitle (VARCHAR(45))
+            description || '',              // 2. newDescription (VARCHAR(1000))
+            perks || null,                  // 3. newPerks (VARCHAR(100)) - CAN BE NULL
+            parseInt(max_participants) || 0, // 4. newMax_participants (INT)
+            parseInt(application_required) || 0, // 5. newApplication_required (TINYINT)
+            application_link || null,       // 6. newApplication_link (VARCHAR(45)) - CAN BE NULL
+            application_deadline || null,   // 7. newApplication_deadline (DATE) - CAN BE NULL
+            flyer_url || null,              // 8. newFlyer (BLOB) - CAN BE NULL
+            event_type || 'on_campus',      // 9. newEvent_type (ENUM)
+            online_link || null,            // 10. newOnline_link (VARCHAR(45)) - CAN BE NULL
+            building || null,               // 11. newBuilding (VARCHAR(45)) - CAN BE NULL
+            label || null,                  // 12. newLabel (VARCHAR(45)) - CAN BE NULL
+            start_date,                     // 13. newStartDate (DATE)
+            end_date,                       // 14. newEndDate (DATE)
+            start_time,                     // 15. newStartTime (TIME)
+            end_time,   
+            finalCost,                    // 16. newEndTime (TIME)
+            parseInt(organizer_id) || 0,    // 17. organizer_id_param (INT)
+            // JSON parameters - MUST be properly stringified
+            JSON.stringify(collaborating_organizers ? collaborating_organizers.filter(id => id !== null) : []), // 18. collaborating_organizers (JSON)
+            JSON.stringify(category_ids ? category_ids.filter(id => id !== null) : [])              // 19. category_ids (JSON)
+            // 20th parameter is OUT: @newEvent_id
+        ];
+        
+        console.log('🔧 Procedure parameters (19 total):');
+        procedureParams.forEach((param, index) => {
+            console.log(`  ${index + 1}: ${param} (type: ${typeof param})`);
+        });
+
+        const connection = await pool.getConnection();
+        
+        try {
+            // Call the stored procedure with ALL 19 parameters
+            const sql = `CALL uploadEvent(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @newEvent_id)`;
+            console.log('📝 SQL:', sql);
+            console.log('📦 Params count:', procedureParams.length);
+            
+            const [result] = await connection.query(sql, procedureParams);
+            
+            // Get the output parameter
+            const [[output]] = await connection.query('SELECT @newEvent_id AS newEventId');
+            const newEventId = output.newEventId;
+            
+            console.log('✅ Event created with ID:', newEventId);
+            
+            res.status(201).json({ 
+                success: true, 
+                newEventId: newEventId,
+                message: 'Event created successfully'
+            });
+            
+        } catch (sqlError) {
+            console.error('❌ SQL Error:', sqlError.message);
+            console.error('SQL Code:', sqlError.code);
+            console.error('SQL State:', sqlError.sqlState);
+            console.error('Full error:', sqlError);
+            
+            // More detailed error info
+            if (sqlError.sql) {
+                console.error('Actual SQL executed:', sqlError.sql);
+            }
+            
+            throw sqlError;
+        } finally {
+            connection.release();
+        }
+        
+    } catch (error) {
+        console.error('❌ Error creating event:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: error.message || 'Failed to create event',
+            sqlMessage: error.sqlMessage,
+            code: error.code,
+            sqlState: error.sqlState
+        });
     }
 });
 
@@ -499,15 +625,31 @@ app.get('/api/events/:id', async (req, res) => {
     }
 });
 
-// Get all categories
+// // Get all categories
+// app.get('/api/categories', async (req, res) => {
+//     try {
+//         const connection = await pool.getConnection();
+//         const [rows] = await connection.execute('SELECT category_name FROM categories ORDER BY category_name');
+//         connection.release();
+        
+//         const categories = rows.map(row => row.category_name);
+//         res.json(categories);
+//     } catch (error) {
+//         console.error('Error fetching categories:', error);
+//         res.status(500).json({ error: 'Failed to fetch categories' });
+//     }
+// });
+
+// Get all categories WITH IDs
 app.get('/api/categories', async (req, res) => {
     try {
         const connection = await pool.getConnection();
-        const [rows] = await connection.execute('SELECT category_name FROM categories ORDER BY category_name');
+        const [rows] = await connection.execute(
+            'SELECT category_id, category_name FROM categories ORDER BY category_name'
+        );
         connection.release();
         
-        const categories = rows.map(row => row.category_name);
-        res.json(categories);
+        res.json(rows); // This now returns [{category_id: 1, category_name: 'Academic'}, ...]
     } catch (error) {
         console.error('Error fetching categories:', error);
         res.status(500).json({ error: 'Failed to fetch categories' });
@@ -525,6 +667,46 @@ app.get('/api/locations', async (req, res) => {
     } catch (error) {
         console.error('Error fetching locations:', error);
         res.status(500).json({ error: 'Failed to fetch locations' });
+    }
+});
+
+// Get all buildings
+app.get('/api/buildings', async (req, res) => {
+    try {
+        const connection = await pool.getConnection();
+        const [rows] = await connection.query(`
+            SELECT 
+                building,
+                COUNT(*) as label_count,
+                MAX(capacity) as max_capacity,
+                GROUP_CONCAT(label ORDER BY label SEPARATOR ', ') as all_labels
+            FROM Locations 
+            GROUP BY building 
+            ORDER BY building
+        `);
+        connection.release();
+        res.json(rows);
+    } catch (error) {
+        console.error('Error fetching buildings:', error);
+        res.status(500).json({ error: 'Failed to fetch buildings' });
+    }
+});
+
+
+// Get labels for a specific building
+app.get('/api/buildings/:building/labels', async (req, res) => {
+    try {
+        const building = decodeURIComponent(req.params.building);
+        const connection = await pool.getConnection();
+        const [rows] = await connection.query(
+            'SELECT location_id, label, capacity FROM Locations WHERE building = ? ORDER BY label',
+            [building]
+        );
+        connection.release();
+        res.json(rows);
+    } catch (error) {
+        console.error('Error fetching labels:', error);
+        res.status(500).json({ error: 'Failed to fetch labels' });
     }
 });
 

@@ -64,6 +64,24 @@ class APIClient {
         }
     }
 
+    async createEvent(eventData) {
+        try {
+            const response = await fetch(`${this.baseURL}/events`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(eventData)
+            });
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to create event');
+            }
+            return await response.json();
+        } catch (error) {
+            console.error('API Client - Error creating event:', error);
+            throw error; // Re-throw to be handled by the caller
+        }
+    }
+
     // Get all categories
     async getCategories() {
         try {

@@ -389,7 +389,7 @@ function populateFilterOptions(categories, locations, organizers) {
     const categorySelect = document.getElementById('categoryFilter');
     if (categorySelect) {
         categorySelect.innerHTML = categories.map(category => 
-            `<option value="${category}">${category}</option>`
+            `<option value="${category.category_name}">${category.category_name}</option>`
         ).join('');
     }
     
@@ -1185,7 +1185,8 @@ function scrollToEvents() {
 }
 
 function showCreateEvent() {
-    showNotification('Create Event feature coming soon!', 'info');
+    // Redirect to the create-event.html page
+    window.location.href = 'create-event.html';
 }
 
 // Export functions for global access
