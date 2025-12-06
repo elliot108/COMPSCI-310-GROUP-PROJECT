@@ -16,7 +16,7 @@ const dbConfig = {
     host: 'localhost',
     port: 3306,
     user: 'root', // Update with your MySQL username
-    password: 'Yrycs584!', // Update with your MySQL password
+    password: 'Iam@qu33r', // Update with your MySQL password
     database: 'dku_event_system',
 
     connectionLimit: 10,
@@ -417,23 +417,22 @@ app.post('/api/events/filter', async (req, res) => {
             LEFT JOIN Organizer_school sch ON o.organizer_id = sch.organizer_id
             LEFT JOIN Event_applications ea ON e.event_id = ea.event_id
             LEFT JOIN Event_online_links eol ON e.event_id = eol.event_id
-            WHERE e.event_id IN (${eventIds.join(',')})
+            WHERE e.event_id IN (${eventIds.map(() => '?').join(',')})
             GROUP BY e.event_id
             ORDER BY t.start_date DESC, t.start_time DESC
         `;
-        
-        const [eventDetails] = await connection.execute(eventDetailsQuery);
-        
-        // Transform the data
-        const now = new Date();
-        const upcomingEvents = [];
-        const pastEvents = [];
+        const [eventDetails] = await connection.execute(eventDetailsQuery, eventIds);
 
-        // fetch organizers for the matched events to ensure correct mapping
-        const matchedIds = eventDetails.map(r => r.event_id);
-        const organizersByEvent = {};
-        if (matchedIds.length > 0) {
-            const placeholders = matchedIds.map(() => '?').join(',');
+        // Step 3: Separate matching and non-matching events, and then by upcoming/past
+        const now = new Date();
+        const matchingEvents = [];
+        const nonMatchingEvents = [];
+
+        // Fetch organizers for all events to ensure correct mapping
+        const allEventIds = eventDetails.map(r => r.event_id);
+        const allOrganizersByEvent = {};
+        if (allEventIds.length > 0) {
+            const placeholders = allEventIds.map(() => '?').join(',');
             const orgQuery = `
                 SELECT eo.event_id,
                        eo.organizer_id,
@@ -449,11 +448,10 @@ app.post('/api/events/filter', async (req, res) => {
                 LEFT JOIN Organizer_school sch ON o.organizer_id = sch.organizer_id
                 WHERE eo.event_id IN (${placeholders})
             `;
-
-            const [orgRows] = await connection.execute(orgQuery, matchedIds);
+            const [orgRows] = await connection.execute(orgQuery, allEventIds);
             orgRows.forEach(r => {
-                if (!organizersByEvent[r.event_id]) organizersByEvent[r.event_id] = [];
-                organizersByEvent[r.event_id].push({
+                if (!allOrganizersByEvent[r.event_id]) allOrganizersByEvent[r.event_id] = [];
+                allOrganizersByEvent[r.event_id].push({
                     organizer_id: r.organizer_id,
                     name: r.organizer_name || (r.organizer_email ? r.organizer_email.split('@')[0] : 'Unknown'),
                     type: r.organizer_type,
@@ -462,11 +460,9 @@ app.post('/api/events/filter', async (req, res) => {
             });
         }
 
-        eventDetails.map(row => {
+        eventDetails.forEach(row => {
             const eventStartDate = new Date(`${row.start_date}T${row.start_time}`);
-
-            // Use organizers fetched separately (guarantees correct association)
-            const organizers = organizersByEvent[row.event_id] || [];
+            const organizers = allOrganizersByEvent[row.event_id] || [];
 
             const event = {
                 event_id: row.event_id,
@@ -494,14 +490,33 @@ app.post('/api/events/filter', async (req, res) => {
                 popularity: Math.floor(Math.random() * 200) + 10
             };
 
-            if (eventStartDate > now) {
-                upcomingEvents.push(event);
+            if (eventIds.includes(event.event_id)) {
+                matchingEvents.push(event);
             } else {
-                pastEvents.push(event);
+                nonMatchingEvents.push(event);
             }
         });
 
-        res.json({ upcoming: upcomingEvents, past: pastEvents });
+        // Separate matching and non-matching events into upcoming/past
+        const finalUpcomingEvents = [];
+        const finalPastEvents = [];
+
+        const sortAndCategorizeEvents = (events) => {
+            events.sort((a, b) => new Date(a.start_date) - new Date(b.start_date));
+            events.forEach(event => {
+                const eventStartDate = new Date(`${event.start_date}T${event.start_time}`);
+                if (eventStartDate > now) {
+                    finalUpcomingEvents.push(event);
+                } else {
+                    finalPastEvents.push(event);
+                }
+            });
+        };
+
+        sortAndCategorizeEvents(matchingEvents);
+        sortAndCategorizeEvents(nonMatchingEvents);
+
+        res.json({ upcoming: finalUpcomingEvents, past: finalPastEvents });
         
     } catch (error) {
         console.error('Error filtering events:', error);
@@ -692,7 +707,17 @@ app.get('/api/buildings', async (req, res) => {
     }
 });
 
-
+app.get('/api/distinct-buildings', async (req, res) => {
+    try {
+        const connection = await pool.getConnection();
+        const [rows] = await connection.query('SELECT DISTINCT building FROM Locations ORDER BY building');
+        connection.release();
+        res.json(rows);
+    } catch (error) {
+        console.error('Error fetching distinct buildings:', error);
+        res.status(500).json({ error: 'Failed to fetch distinct buildings' });
+    }
+});
 // Get labels for a specific building
 app.get('/api/buildings/:building/labels', async (req, res) => {
     try {
@@ -1083,11 +1108,14 @@ app.post('/api/login', async (req, res) => {
 
 // Signup endpoints that call stored procedures. Each procedure uses an OUT parameter for status/error message.
 app.post('/api/signup/attendee', async (req, res) => {
-    const { email, password, first_name, last_name, netId, gradYear, major } = req.body;
+    const { email, password, first_name, last_name, netId, gradYear, major, categories, clubs } = req.body;
+    // console.log('Received gradYear:', gradYear, 'type:', typeof gradYear); // Removed debugging console.log
     if (!email || !password) return res.status(400).json({ error: 'Email and password are required.' });
 
     const connection = await poolMulti.getConnection();
     try {
+        // Removed manual email existence check as stored procedure handles it.
+
         // Relax SQL mode for this session to avoid strict-mode errors when DB schema
         // has columns without defaults (e.g., grad_year). Remove STRICT_TRANS_TABLES / STRICT_ALL_TABLES.
         try {
@@ -1095,86 +1123,31 @@ app.post('/api/signup/attendee', async (req, res) => {
             // current session sql_mode to an empty string so strict-mode doesn't block inserts
             // for columns without defaults while we run the stored procedure.
             await connection.query('SET SESSION sql_mode = ""');
-            // Get the user_id that was just created
-        const [userRows] = await connection.execute('SELECT user_id FROM Users WHERE email = ? LIMIT 1', [email]);
-        const userId = userRows[0].user_id;
-        
-        // Save preferences
-        if (categories && Array.isArray(categories) && categories.length > 0) {
-            const categoryValues = categories.map(cat_id => [userId, cat_id]);
-            await connection.query(
-                'INSERT IGNORE INTO User_categories (user_id, category_id) VALUES ?',
-                [categoryValues]
-            );
-            message = message + ' Categories saved.';
-        }
-        
-        if (clubs && Array.isArray(clubs) && clubs.length > 0) {
-            const clubValues = clubs.map(club_id => [userId, club_id, 1]);
-            await connection.query(
-                'INSERT IGNORE INTO User_organizers_notification (user_id, organizer_id, remind_required) VALUES ?',
-                [clubValues]
-            );
-            message = message + ' Club notifications saved.';
-        }
-        
-        return res.json({ message, user_id: userId });
         } catch (modeErr) {
             console.debug('Could not set session sql_mode to empty string:', modeErr.message);
         }
-        finally {
-            connection.release();
-        }
-        
 
-        // Figure out how many IN params the stored procedure expects and call accordingly
-        const inCount = await getProcedureInParamCount('sp_signup_attendee', connection);
-        const optionalFields = [first_name || null, last_name || null, netId || null, gradYear || null, major || null];
-
-        if (inCount === null) {
-            // Unknown signature: try longest to shortest optional sets
-            let called = false;
-            for (let take = optionalFields.length; take >= 0 && !called; take--) {
-                const args = [email, password, ...optionalFields.slice(0, take)];
-                const placeholders = new Array(2 + take).fill('?').join(', ');
-                try {
-                    console.debug('Attempting sp_signup_attendee with', 2 + take, 'IN args');
-                    await connection.query(`CALL sp_signup_attendee(${placeholders}, @p_error_message)`, args);
-                    called = true;
-                } catch (err) {
-                    console.debug('sp_signup_attendee attempt failed with', take, 'optional args:', err.message);
-                }
-            }
-            if (!called) throw new Error('Could not call sp_signup_attendee with any signature');
-            } else {
-            const expectedIn = Number(inCount);
-            const numOptionalNeeded = Math.max(0, expectedIn - 2); // email,password are first two
-            const args = [email, password, ...optionalFields.slice(0, numOptionalNeeded)];
-                console.debug('sp_signup_attendee expects', expectedIn, 'IN args - calling with', args.length);
-            const placeholders = new Array(expectedIn).fill('?').join(', ');
-            await connection.query(`CALL sp_signup_attendee(${placeholders}, @p_error_message)`, args);
-        }
+        // Call sp_signup_attendee with all parameters including categories and clubs
+        // The stored procedure now handles email existence check and preferences saving.
+        await connection.query('CALL sp_signup_attendee(?, ?, ?, ?, ?, ?, ?, ?, ?, @p_error_message)', [
+            email,
+            password,
+            first_name || null,
+            last_name || null,
+            netId || null,
+            gradYear || 2026,
+            major || null,
+            JSON.stringify(categories || []), // p_categories_json
+            JSON.stringify(clubs || [])      // p_clubs_json
+        ]);
 
         // Read the OUT parameter
         const [outRows] = await connection.query('SELECT @p_error_message AS message');
-        let message = outRows && outRows[0] ? outRows[0].message : 'Unknown result';
+        const message = outRows && outRows[0] ? outRows[0].message : 'Unknown result';
 
-        // If the procedure reported success and a major was provided, update Attendees.major for the created user
-        if (message && message.toLowerCase().startsWith('success') && major) {
-            try {
-                const [userRows] = await connection.execute('SELECT user_id FROM Users WHERE email = ? LIMIT 1', [email]);
-                const uid = userRows && userRows[0] ? userRows[0].user_id : null;
-                if (uid) {
-                    await connection.execute('UPDATE Attendees SET major = ? WHERE user_id = ?', [major, uid]);
-                    message = message + ' Major recorded.';
-                } else {
-                    message = message + ' (Could not find user to set major)';
-                }
-            } catch (uErr) {
-                console.error('Failed to set major for attendee user:', uErr.message);
-                // don't fail the signup overall — return message with note
-                message = message + ' (Failed to save major)';
-            }
+        if (message.toLowerCase().startsWith('error')) {
+            console.error('❌ Signup conflict:', message);
+            return res.status(409).json({ error: message });
         }
 
         return res.json({ message });
@@ -1187,45 +1160,36 @@ app.post('/api/signup/attendee', async (req, res) => {
 });
 
 app.post('/api/signup/club', async (req, res) => {
-    const { email, password, club_name, club_url, contact_email, yearFounded} = req.body;
+    const { email, password, club_name, club_url, contact_email, yearFounded, categories } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'Email and password are required.' });
 
     const connection = await poolMulti.getConnection();
     try {
+        // Removed manual email existence check as stored procedure handles it.
+
         // ensure session not in strict mode to avoid inserts failing on columns without defaults
         try {
             await connection.query('SET SESSION sql_mode = ""');
         } catch (modeErr) {
             console.debug('Could not set session sql_mode to empty string for club signup:', modeErr.message);
         }
-        await connection.query('CALL sp_signup_club(?, ?, ?, ?, ?, ?, ?, @p_error_message)', [email, password, club_name || null, club_url || null, contact_email || null, yearFounded || null]);
-        const [outRows] = await connection.query('SELECT @p_error_message AS message');
-        let message = outRows && outRows[0] ? outRows[0].message : 'Unknown result';
 
-        // If signup succeeded and a yearFounded was provided, update the Clubs row for this organizer
-        if (message && message.toLowerCase().startsWith('success') && yearFounded) {
-            try {
-                // find the user_id
-                const [userRows] = await connection.execute('SELECT user_id FROM Users WHERE email = ? LIMIT 1', [email]);
-                const uid = userRows && userRows[0] ? userRows[0].user_id : null;
-                if (uid) {
-                    // find the latest organizer for this user
-                    const [orgRows] = await connection.execute('SELECT organizer_id FROM Organizers WHERE user_id = ? ORDER BY organizer_id DESC LIMIT 1', [uid]);
-                    const orgId = orgRows && orgRows[0] ? orgRows[0].organizer_id : null;
-                    if (orgId) {
-                        // update Clubs table
-                        await connection.execute('UPDATE Clubs SET year_founded = ? WHERE organizer_id = ?', [yearFounded, orgId]);
-                        message = message + ' Year recorded.';
-                    } else {
-                        message = message + ' (Could not find organizer to set year founded)';
-                    }
-                } else {
-                    message = message + ' (Could not find user to set year founded)';
-                }
-            } catch (uErr) {
-                console.error('Failed to set year founded for club:', uErr.message);
-                message = message + ' (Failed to save year)';
-            }
+        // Call sp_signup_club with all parameters including categories as JSON
+        await connection.query('CALL sp_signup_club(?, ?, ?, ?, ?, ?, ?, @p_error_message)', [
+            email,
+            password,
+            club_name || null,
+            club_url || null,
+            contact_email || null,
+            yearFounded || null, // yearFounded can now be null, as per the SP definition
+            JSON.stringify(categories || []) // p_categories_json
+        ]);
+        const [outRows] = await connection.query('SELECT @p_error_message AS message');
+        const message = outRows && outRows[0] ? outRows[0].message : 'Unknown result';
+
+        if (message.toLowerCase().startsWith('error')) {
+            console.error('❌ Signup conflict:', message);
+            return res.status(409).json({ error: message });
         }
 
         return res.json({ message });
@@ -1243,9 +1207,17 @@ app.post('/api/signup/school', async (req, res) => {
 
     const connection = await poolMulti.getConnection();
     try {
+        // Removed manual email existence check as stored procedure is assumed to handle it.
+
         await connection.query('CALL sp_signup_school(?, ?, ?, ?, ?, @p_error_message)', [email, password, department || null, name || null, supervisor || null]);
         const [outRows] = await connection.query('SELECT @p_error_message AS message');
         const message = outRows && outRows[0] ? outRows[0].message : 'Unknown result';
+
+        if (message.toLowerCase().startsWith('error')) {
+            console.error('❌ Signup conflict:', message);
+            return res.status(409).json({ error: message });
+        }
+
         return res.json({ message });
     } catch (error) {
         console.error('Error during school signup:', error.message);
@@ -1261,6 +1233,8 @@ app.post('/api/signup/student', async (req, res) => {
 
     const connection = await poolMulti.getConnection();
     try {
+        // Removed manual email existence check as stored procedure is assumed to handle it.
+
         // Relax SQL mode for this session to avoid strict-mode errors
         try {
             await connection.query('SET SESSION sql_mode = ""');
@@ -1268,59 +1242,27 @@ app.post('/api/signup/student', async (req, res) => {
             console.debug('Could not set session sql_mode to empty string:', modeErr.message);
         }
 
-        // Decide how many IN params the procedure expects by inspecting information_schema
-        try {
-            // Decide how many IN params the procedure expects and call accordingly
-            const inCount = await getProcedureInParamCount('sp_signup_student_organizer', connection);
-            const optionalFields = [first_name || null, last_name || null, netId || null, grad_year || null, major || null];
+        // Call sp_signup_student_organizer with all parameters
+        await connection.query('CALL sp_signup_student_organizer(?, ?, ?, ?, ?, ?, ?, @p_error_message)', [
+            email,
+            password,
+            first_name || null,
+            last_name || null,
+            netId || null,
+            grad_year || 2026, 
+            major || null
+        ]);
 
-            if (inCount === null) {
-                // Unknown signature: attempt longest to shortest
-                let called = false;
-                for (let take = optionalFields.length; take >= 0 && !called; take--) {
-                    const args = [email, password, ...optionalFields.slice(0, take)];
-                    const placeholders = new Array(2 + take).fill('?').join(', ');
-                    try {
-                        await connection.query(`CALL sp_signup_student_organizer(${placeholders}, @p_error_message)`, args);
-                        called = true;
-                    } catch (err) {
-                        console.debug('sp_signup_student_organizer attempt failed with', take, 'optional args:', err.message);
-                    }
-                }
-                if (!called) throw new Error('Could not call sp_signup_student_organizer with any signature');
-            } else {
-                const expectedIn = Number(inCount);
-                const numOptionalNeeded = Math.max(0, expectedIn - 2);
-                const args = [email, password, ...optionalFields.slice(0, numOptionalNeeded)];
-                const placeholders = new Array(expectedIn).fill('?').join(', ');
-                await connection.query(`CALL sp_signup_student_organizer(${placeholders}, @p_error_message)`, args);
-            }
+        // Read OUT param
+        const [outRows] = await connection.query('SELECT @p_error_message AS message');
+        const message = outRows && outRows[0] ? outRows[0].message : 'Unknown result';
 
-            // Read OUT param
-            const [outRows] = await connection.query('SELECT @p_error_message AS message');
-            let message = outRows && outRows[0] ? outRows[0].message : 'Unknown result';
-
-            // If success and major provided, set major on Attendees
-            if (message && message.toLowerCase().startsWith('success') && major) {
-                try {
-                    const [userRows] = await connection.execute('SELECT user_id FROM Users WHERE email = ? LIMIT 1', [email]);
-                    const uid = userRows && userRows[0] ? userRows[0].user_id : null;
-                    if (uid) {
-                        await connection.execute('UPDATE Attendees SET major = ? WHERE user_id = ?', [major, uid]);
-                        message = message + ' Major recorded.';
-                    } else {
-                        message = message + ' (Could not find user to set major)';
-                    }
-                } catch (uErr) {
-                    console.error('Failed to set major for student organizer user:', uErr.message);
-                    message = message + ' (Failed to save major)';
-                }
-            }
-
-            return res.json({ message });
-        } catch (innerErr) {
-            throw innerErr;
+        if (message.toLowerCase().startsWith('error')) {
+            console.error('❌ Signup conflict:', message);
+            return res.status(409).json({ error: message });
         }
+
+        return res.json({ message });
     } catch (error) {
         console.error('Error during student organizer signup:', error.message);
         return res.status(500).json({ error: error.message });

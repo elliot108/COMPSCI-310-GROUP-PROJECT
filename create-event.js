@@ -1,12 +1,17 @@
 // create-event.js - FIXED VERSION
+let allOrganizers = []; // Store all organizers globally
+
 document.addEventListener('DOMContentLoaded', async function() {
     try {
         // Load categories from database
         await loadCategories();
-        
+
+        // Load all organizers for type-ahead search
+        await loadAllOrganizers();
+
         // Set up event listeners for dynamic fields
         setupDynamicFields();
-        
+
         // Form submission handler
         const form = document.getElementById('createEventForm');
         if (form) {
@@ -19,6 +24,17 @@ document.addEventListener('DOMContentLoaded', async function() {
         alert('Error loading page: ' + error.message);
     }
 });
+
+async function loadAllOrganizers() {
+    try {
+        const response = await fetch('http://localhost:3000/api/all-organizers');
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        allOrganizers = await response.json();
+        console.log('All organizers loaded:', allOrganizers);
+    } catch (error) {
+        console.error('Failed to load all organizers:', error);
+    }
+}
 
 async function loadCategories() {
     try {
@@ -191,10 +207,100 @@ function addCollaboratorRow() {
     row.className = 'collaborator-row';
     row.id = `collaborator-${rowId}`;
     row.innerHTML = `
-        <input type="number" class="collaborator-id" placeholder="Organizer ID" required>
+        <div class="relative w-full">
+            <input type="text" class="collaborator-search-input w-full" placeholder="Search organizer by name or email" data-row-id="${rowId}">
+            <div class="collaborator-suggestions absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-48 overflow-y-auto hidden mt-1"></div>
+            <input type="hidden" class="collaborator-id-hidden" name="collaborating_organizers_id" data-row-id="${rowId}">
+        </div>
         <button type="button" class="remove-collaborator" onclick="removeCollaboratorRow('${rowId}')">×</button>
     `;
     container.appendChild(row);
+
+    // Set up event listeners for the newly added row
+    const searchInput = row.querySelector('.collaborator-search-input');
+    const suggestionsContainer = row.querySelector('.collaborator-suggestions');
+    const hiddenIdInput = row.querySelector('.collaborator-id-hidden');
+
+    let selectedOrganizerId = null; // To store the selected ID for this row
+
+    const renderSuggestions = (filteredOrganizers) => {
+        suggestionsContainer.innerHTML = '';
+        if (filteredOrganizers.length === 0 && searchInput.value.length > 0) {
+            suggestionsContainer.innerHTML = '<div class="p-2 text-gray-500">No organizers found</div>';
+            suggestionsContainer.classList.remove('hidden');
+            return;
+        }
+
+        filteredOrganizers.forEach(org => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.classList.add('block', 'w-full', 'text-left', 'px-3', 'py-2', 'text-sm', 'text-gray-700', 'hover:bg-blue-50', 'transition-colors');
+            button.textContent = org.name; // Display name or email
+            button.addEventListener('click', () => {
+                searchInput.value = org.name; // Display selected name
+                hiddenIdInput.value = org.organizer_id; // Store ID
+                selectedOrganizerId = org.organizer_id;
+                suggestionsContainer.classList.add('hidden');
+            });
+            suggestionsContainer.appendChild(button);
+        });
+        suggestionsContainer.classList.remove('hidden');
+    };
+
+    searchInput.addEventListener('input', () => {
+        const searchValue = searchInput.value.trim().toLowerCase();
+        if (searchValue.length > 0) {
+            const filtered = allOrganizers.filter(org => 
+                org.name.toLowerCase().includes(searchValue) ||
+                (org.email && org.email.toLowerCase().includes(searchValue))
+            );
+            renderSuggestions(filtered);
+        } else {
+            suggestionsContainer.classList.add('hidden');
+            hiddenIdInput.value = ''; // Clear hidden ID if search input is cleared
+            selectedOrganizerId = null;
+        }
+    });
+
+    searchInput.addEventListener('focus', () => {
+        // Optionally show all or recent if search is empty on focus
+        if (searchInput.value.trim().length > 0) {
+            const searchValue = searchInput.value.trim().toLowerCase();
+            const filtered = allOrganizers.filter(org => 
+                org.name.toLowerCase().includes(searchValue) ||
+                (org.email && org.email.toLowerCase().includes(searchValue))
+            );
+            renderSuggestions(filtered);
+        } else if (allOrganizers.length > 0) {
+            // If search is empty on focus, show all organizers
+            renderSuggestions(allOrganizers);
+        }
+    });
+
+    searchInput.addEventListener('blur', (e) => {
+        setTimeout(() => {
+            if (!e.relatedTarget || !suggestionsContainer.contains(e.relatedTarget)) {
+                suggestionsContainer.classList.add('hidden');
+            }
+        }, 150);
+        // If the user blurs and hasn't selected anything, and input is not empty,
+        // try to find a match or clear if no exact match.
+        if (searchInput.value.trim().length > 0 && selectedOrganizerId === null) {
+            const exactMatch = allOrganizers.find(org => 
+                org.name.toLowerCase() === searchInput.value.trim().toLowerCase() ||
+                (org.email && org.email.toLowerCase() === searchInput.value.trim().toLowerCase())
+            );
+            if (exactMatch) {
+                searchInput.value = exactMatch.name;
+                hiddenIdInput.value = exactMatch.organizer_id;
+                selectedOrganizerId = exactMatch.organizer_id;
+            } else {
+                searchInput.value = '';
+                hiddenIdInput.value = '';
+                alert('Please select a valid organizer from the suggestions.');
+            }
+        }
+    });
 }
 
 function removeCollaboratorRow(rowId) {
@@ -203,7 +309,7 @@ function removeCollaboratorRow(rowId) {
 }
 
 function getCollaboratorsJson() {
-    const inputs = document.querySelectorAll('.collaborator-id');
+    const inputs = document.querySelectorAll('.collaborator-id-hidden');
     const organizers = Array.from(inputs)
         .map(input => parseInt(input.value))
         .filter(id => !isNaN(id) && id > 0);
