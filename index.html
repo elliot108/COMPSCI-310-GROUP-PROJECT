@@ -281,15 +281,25 @@
             <!-- Organizer Filter -->
             <div class="mb-6">
                 <label class="block text-sm font-medium text-gray-700 mb-2">Organizer</label>
-                <div id="organizerFilterToggles" class="filter-toggle-container"></div>
-                <p class="text-xs text-gray-500 mt-1">Hold Ctrl/Cmd to select multiple</p>
+                <div class="relative">
+                    <input type="text" id="organizerSearch" placeholder="Search organizers..." class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500">
+                    <div id="organizerSuggestions" class="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-48 overflow-y-auto hidden mt-1">
+                        <!-- Suggestions will be dynamically inserted here -->
+                    </div>
+                </div>
+                <p class="text-xs text-gray-500 mt-1">Type to search and select an organizer</p>
             </div>
 
             <!-- Location Filter -->
             <div class="mb-6">
                 <label class="block text-sm font-medium text-gray-700 mb-2">Location</label>
-                <div id="locationFilterToggles" class="filter-toggle-container"></div>
-                <p class="text-xs text-gray-500 mt-1">Hold Ctrl/Cmd to select multiple</p>
+                <div class="relative">
+                    <input type="text" id="locationSearch" placeholder="Search locations..." class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500">
+                    <div id="locationSuggestions" class="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-48 overflow-y-auto hidden mt-1">
+                        <!-- Suggestions will be dynamically inserted here -->
+                    </div>
+                </div>
+                <p class="text-xs text-gray-500 mt-1">Type to search and select a location</p>
             </div>
 
             <!-- Cost Range -->
@@ -483,34 +493,179 @@
 
             // Initialize toggles for categories, organizers, and locations
             setupFilterToggles('categoryFilterToggles', 'categories');
-            setupFilterToggles('organizerFilterToggles', 'organizers');
-            setupFilterToggles('locationFilterToggles', 'locations');
+            // Removed setupFilterToggles for organizers
+            // setupFilterToggles('organizerFilterToggles', 'organizers'); // This div is now effectively removed, but kept for context. Its content is not used.
 
             // Populate dynamic filters on load (moved here from main-api.js)
             const populateDynamicFilters = async () => {
                 const categories = AppState.useMockData ? AppState.allCategories : await window.apiClient.getCategories();
-                const organizers = AppState.useMockData ? AppState.allOrganizers : await window.apiClient.getOrganizers();
-                const locations = AppState.useMockData ? AppState.allLocations : await window.apiClient.getLocations();
+                const allOrganizers = AppState.useMockData ? AppState.allOrganizers : await window.apiClient.getOrganizers();
+                const locations = AppState.useMockData ? AppState.allLocations : await window.apiClient.getDistinctBuildings();
 
                 const categoryTogglesContainer = document.getElementById('categoryFilterToggles');
                 if (categoryTogglesContainer) {
                     categoryTogglesContainer.innerHTML = categories.map(cat => 
-                        `<button type="button" class="filter-toggle-button" data-value="${cat}">${cat}</button>`
+                        `<button type="button" class="filter-toggle-button" data-value="${cat.category_id}">${cat.category_name}</button>`
                     ).join('');
                 }
 
-                const organizerTogglesContainer = document.getElementById('organizerFilterToggles');
+                // Handle Organizer Search Input
+                const organizerSearchInput = document.getElementById('organizerSearch');
+                const organizerSuggestionsContainer = document.getElementById('organizerSuggestions');
+                let selectedOrganizers = [];
+
+                const renderOrganizerSuggestions = (filteredOrganizers) => {
+                    organizerSuggestionsContainer.innerHTML = '';
+                    if (filteredOrganizers.length === 0 && organizerSearchInput.value.length > 0) {
+                        organizerSuggestionsContainer.innerHTML = '<div class="p-2 text-gray-500">No organizers found</div>';
+                        organizerSuggestionsContainer.classList.remove('hidden');
+                        return;
+                    }
+
+                    filteredOrganizers.forEach(org => {
+                        const button = document.createElement('button');
+                        button.type = 'button';
+                        button.classList.add('block', 'w-full', 'text-left', 'px-3', 'py-2', 'text-sm', 'text-gray-700', 'hover:bg-teal-50', 'transition-colors');
+                        button.textContent = org.name;
+                        button.dataset.value = org.name; // Use name for display and value
+                        button.addEventListener('click', () => {
+                            // Allow multiple selections
+                            if (!selectedOrganizers.includes(org.name)) {
+                                selectedOrganizers.push(org.name);
+                            }
+                            organizerSearchInput.value = selectedOrganizers.join(', ');
+                            organizerSuggestionsContainer.classList.add('hidden');
+                            AppState.currentFilters.organizers = selectedOrganizers;
+                            applyFilters();
+                        });
+                        organizerSuggestionsContainer.appendChild(button);
+                    });
+                    organizerSuggestionsContainer.classList.remove('hidden');
+                };
+
+                organizerSearchInput.addEventListener('input', () => {
+                    const searchValue = organizerSearchInput.value.trim().toLowerCase();
+                    if (searchValue.length > 0) {
+                        const filtered = allOrganizers.filter(org => 
+                            org.name.toLowerCase().includes(searchValue)
+                        );
+                        renderOrganizerSuggestions(filtered);
+                    } else {
+                        organizerSuggestionsContainer.classList.add('hidden');
+                    }
+                });
+
+                organizerSearchInput.addEventListener('focus', () => {
+                    if (organizerSearchInput.value.trim().length > 0) {
+                        const searchValue = organizerSearchInput.value.trim().toLowerCase();
+                        const filtered = allOrganizers.filter(org => 
+                            org.name.toLowerCase().includes(searchValue)
+                        );
+                        renderOrganizerSuggestions(filtered);
+                    } else {
+                        // Optionally show all if search is empty on focus
+                        // renderOrganizerSuggestions(allOrganizers);
+                    }
+                });
+
+                organizerSearchInput.addEventListener('blur', (e) => {
+                    // Hide suggestions after a small delay to allow click event on buttons to fire
+                    setTimeout(() => {
+                        if (!e.relatedTarget || !organizerSuggestionsContainer.contains(e.relatedTarget)) {
+                            organizerSuggestionsContainer.classList.add('hidden');
+                        }
+                    }, 150);
+                });
+
+                // Display selected organizers as active buttons below the search input
+                const displaySelectedOrganizers = () => {
+                    // This part would be for displaying active filters. 
+                    // For now, assume search input shows selection.
+                };
+
+                const organizerTogglesContainer = document.getElementById('organizerFilterToggles'); // This div is now effectively removed, but kept for context. Its content is not used.
                 if (organizerTogglesContainer) {
-                    organizerTogglesContainer.innerHTML = organizers.map(org => 
-                        `<button type="button" class="filter-toggle-button" data-value="${org.name}">${org.name}</button>`
-                    ).join('');
+                    // This block is no longer needed but keeping the if condition for safety
+                    organizerTogglesContainer.innerHTML = ''; 
                 }
+
+                // Handle Location Search Input (for distinct buildings)
+                const locationSearchInput = document.getElementById('locationSearch');
+                const locationSuggestionsContainer = document.getElementById('locationSuggestions');
+                let selectedLocations = [];
+
+                const renderLocationSuggestions = (filteredLocations) => {
+                    locationSuggestionsContainer.innerHTML = '';
+                    if (filteredLocations.length === 0 && locationSearchInput.value.length > 0) {
+                        locationSuggestionsContainer.innerHTML = '<div class="p-2 text-gray-500">No locations found</div>';
+                        locationSuggestionsContainer.classList.remove('hidden');
+                        return;
+                    }
+
+                    filteredLocations.forEach(loc => {
+                        const button = document.createElement('button');
+                        button.type = 'button';
+                        button.classList.add('block', 'w-full', 'text-left', 'px-3', 'py-2', 'text-sm', 'text-gray-700', 'hover:bg-teal-50', 'transition-colors');
+                        button.textContent = loc.building; // Display building name
+                        button.dataset.value = loc.building; // Use building name for value
+                        button.addEventListener('click', () => {
+                            // Allow multiple selections
+                            if (!selectedLocations.includes(loc.building)) {
+                                selectedLocations.push(loc.building);
+                            }
+                            locationSearchInput.value = selectedLocations.join(', ');
+                            locationSuggestionsContainer.classList.add('hidden');
+                            AppState.currentFilters.locations = selectedLocations;
+                            applyFilters();
+                        });
+                        locationSuggestionsContainer.appendChild(button);
+                    });
+                    locationSuggestionsContainer.classList.remove('hidden');
+                };
+
+                locationSearchInput.addEventListener('input', () => {
+                    const searchValue = locationSearchInput.value.trim().toLowerCase();
+                    if (searchValue.length > 0) {
+                        const filtered = locations.filter(loc => 
+                            loc.building.toLowerCase().includes(searchValue)
+                        );
+                        renderLocationSuggestions(filtered);
+                    } else {
+                        locationSuggestionsContainer.classList.add('hidden');
+                    }
+                });
+
+                locationSearchInput.addEventListener('focus', () => {
+                    if (locationSearchInput.value.trim().length > 0) {
+                        const searchValue = locationSearchInput.value.trim().toLowerCase();
+                        const filtered = locations.filter(loc => 
+                            loc.building.toLowerCase().includes(searchValue)
+                        );
+                        renderLocationSuggestions(filtered);
+                    } else {
+                        // Optionally show all if search is empty on focus
+                        // renderLocationSuggestions(locations);
+                    }
+                });
+
+                locationSearchInput.addEventListener('blur', (e) => {
+                    setTimeout(() => {
+                        if (!e.relatedTarget || !locationSuggestionsContainer.contains(e.relatedTarget)) {
+                            locationSuggestionsContainer.classList.add('hidden');
+                        }
+                    }, 150);
+                });
+
+                // Display selected locations as active buttons below the search input
+                const displaySelectedLocations = () => {
+                    // This part would be for displaying active filters. 
+                    // For now, assume search input shows selection.
+                };
 
                 const locationTogglesContainer = document.getElementById('locationFilterToggles');
                 if (locationTogglesContainer) {
-                    locationTogglesContainer.innerHTML = locations.map(loc => 
-                        `<button type="button" class="filter-toggle-button" data-value="${loc.label}">${loc.label}</button>`
-                    ).join('');
+                    // This block is no longer needed but keeping the if condition for safety
+                    locationTogglesContainer.innerHTML = ''; 
                 }
             };
 

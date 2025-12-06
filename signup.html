@@ -33,95 +33,95 @@
                 <input id="password" type="password" required class="mt-1 block w-full px-3 py-2 border rounded-md">
             </div>
 
-  <!-- Attendee / Student fields -->
-<div id="attendeeFields">
-    <div>
-        <label class="block text-sm font-medium text-gray-700">First name</label>
-        <input id="first_name" type="text" class="mt-1 block w-full px-3 py-2 border rounded-md">
-    </div>
-    <div>
-        <label class="block text-sm font-medium text-gray-700">Last name</label>
-        <input id="last_name" type="text" class="mt-1 block w-full px-3 py-2 border rounded-md">
-    </div>
-    <div>
-        <label class="block text-sm font-medium text-gray-700">NetID</label>
-        <input id="netId" type="text" class="mt-1 block w-full px-3 py-2 border rounded-md">
-    </div>
-    <div>
-        <label class="block text-sm font-medium text-gray-700">Graduation Year</label>
-        <input id="grad_year" name="grad_year" type="number" min="1900" max="2100" placeholder="e.g. 2026" class="mt-1 block w-full px-3 py-2 border rounded-md">
-    </div>
-    <div>
-        <label class="block text-sm font-medium text-gray-700">Major</label>
-        <input id="major" type="text" placeholder="e.g. Computer Science" class="mt-1 block w-full px-3 py-2 border rounded-md">
-    </div>
-    
-    <!-- ADD THIS NEW SECTION FOR CATEGORIES -->
-    <div class="mt-6 p-4 bg-gray-50 rounded-lg">
-        <h3 class="text-sm font-medium text-gray-700 mb-3">Category Interests (Optional)</h3>
-        <p class="text-xs text-gray-500 mb-3">Select categories you're interested in. We'll recommend relevant events.</p>
-        <div id="categoryCheckboxes" class="space-y-2 max-h-48 overflow-y-auto p-3 border border-gray-200 rounded bg-white">
-            <!-- Categories will load here automatically -->
-            <p class="text-sm text-gray-400 text-center py-4">Loading categories...</p>
-        </div>
-    </div>
-    
-    <!-- ADD THIS NEW SECTION FOR CLUB NOTIFICATIONS -->
-    <div class="mt-6 p-4 bg-gray-50 rounded-lg">
-        <h3 class="text-sm font-medium text-gray-700 mb-3">Club Notifications (Optional)</h3>
-        <p class="text-xs text-gray-500 mb-3">Select clubs to receive event notifications from.</p>
-        <div id="clubCheckboxes" class="space-y-2 max-h-48 overflow-y-auto p-3 border border-gray-200 rounded bg-white">
-            <!-- Clubs will load here automatically -->
-            <p class="text-sm text-gray-400 text-center py-4">Loading clubs...</p>
-        </div>
-    </div>
-</div>
+            <!-- Attendee / Student fields -->
+            <div id="attendeeFields">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">First name</label>
+                    <input id="first_name" type="text" class="mt-1 block w-full px-3 py-2 border rounded-md">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Last name</label>
+                    <input id="last_name" type="text" class="mt-1 block w-full px-3 py-2 border rounded-md">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">NetID</label>
+                    <input id="netId" type="text" class="mt-1 block w-full px-3 py-2 border rounded-md">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Graduation Year</label>
+                    <input id="grad_year" name="grad_year" type="number" min="1900" max="2100" placeholder="e.g. 2026" class="mt-1 block w-full px-3 py-2 border rounded-md">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Major</label>
+                    <input id="major" type="text" placeholder="e.g. Computer Science" class="mt-1 block w-full px-3 py-2 border rounded-md">
+                </div>
+                
+                <!-- NEW SECTION FOR CATEGORIES -->
+                <div class="mt-6 p-4 bg-gray-50 rounded-lg">
+                    <h3 class="text-sm font-medium text-gray-700 mb-3">Category Interests (Optional)</h3>
+                    <p class="text-xs text-gray-500 mb-3">Select categories you're interested in. We'll recommend relevant events.</p>
+                    <div id="categoryCheckboxes" class="space-y-2 max-h-48 overflow-y-auto p-3 border border-gray-200 rounded bg-white">
+                        <!-- Categories will load here automatically -->
+                        <p class="text-sm text-gray-400 text-center py-4">Loading categories...</p>
+                    </div>
+                </div>
+                
+                <!-- NEW SECTION FOR CLUB NOTIFICATIONS -->
+                <div class="mt-6 p-4 bg-gray-50 rounded-lg">
+                    <h3 class="text-sm font-medium text-gray-700 mb-3">Club Notifications (Optional)</h3>
+                    <p class="text-xs text-gray-500 mb-3">Select clubs to receive event notifications from.</p>
+                    <div id="clubCheckboxes" class="space-y-2 max-h-48 overflow-y-auto p-3 border border-gray-200 rounded bg-white">
+                        <!-- Clubs will load here automatically -->
+                        <p class="text-sm text-gray-400 text-center py-4">Loading clubs...</p>
+                    </div>
+                </div>
+            </div>
 
-<!-- Club fields -->
-<div id="clubFields" class="hidden">
-    <div>
-        <label class="block text-sm font-medium text-gray-700">Club name</label>
-        <input id="club_name" type="text" class="mt-1 block w-full px-3 py-2 border rounded-md">
-    </div>
-    <div>
-        <label class="block text-sm font-medium text-gray-700">Club URL</label>
-        <input id="club_url" type="text" class="mt-1 block w-full px-3 py-2 border rounded-md">
-    </div>
-    <div>
-        <label class="block text-sm font-medium text-gray-700">Year founded</label>
-        <input id="yearFounded" type="number" min="1000" max="9999" placeholder="e.g. 2005" class="mt-1 block w-full px-3 py-2 border rounded-md">
-    </div>
-    <div>
-        <label class="block text-sm font-medium text-gray-700">Contact email</label>
-        <input id="contact_email" type="email" class="mt-1 block w-full px-3 py-2 border rounded-md">
-    </div>
-    
-    <!-- ADD THIS FOR CLUB CATEGORIES -->
-    <div class="mt-6 p-4 bg-gray-50 rounded-lg">
-        <h3 class="text-sm font-medium text-gray-700 mb-3">Club Categories (Optional)</h3>
-        <p class="text-xs text-gray-500 mb-3">Select categories your club belongs to.</p>
-        <div id="clubCategoryCheckboxes" class="space-y-2 max-h-48 overflow-y-auto p-3 border border-gray-200 rounded bg-white">
-            <!-- Categories will load here automatically -->
-            <p class="text-sm text-gray-400 text-center py-4">Loading categories...</p>
-        </div>
-    </div>
-</div>
+            <!-- Club fields -->
+            <div id="clubFields" class="hidden">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Club name</label>
+                    <input id="club_name" type="text" class="mt-1 block w-full px-3 py-2 border rounded-md">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Club URL</label>
+                    <input id="club_url" type="text" class="mt-1 block w-full px-3 py-2 border rounded-md">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Year founded</label>
+                    <input id="yearFounded" type="number" min="1000" max="9999" placeholder="e.g. 2005" class="mt-1 block w-full px-3 py-2 border rounded-md">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Contact email</label>
+                    <input id="contact_email" type="email" class="mt-1 block w-full px-3 py-2 border rounded-md">
+                </div>
+                
+                <!-- NEW SECTION FOR CLUB CATEGORIES -->
+                <div class="mt-6 p-4 bg-gray-50 rounded-lg">
+                    <h3 class="text-sm font-medium text-gray-700 mb-3">Club Categories (Optional)</h3>
+                    <p class="text-xs text-gray-500 mb-3">Select categories your club belongs to.</p>
+                    <div id="clubCategoryCheckboxes" class="space-y-2 max-h-48 overflow-y-auto p-3 border border-gray-200 rounded bg-white">
+                        <!-- Categories will load here automatically -->
+                        <p class="text-sm text-gray-400 text-center py-4">Loading categories...</p>
+                    </div>
+                </div>
+            </div>
 
-<!-- School fields -->
-<div id="schoolFields" class="hidden">
-    <div>
-        <label class="block text-sm font-medium text-gray-700">Department</label>
-        <input id="department" type="text" class="mt-1 block w-full px-3 py-2 border rounded-md">
-    </div>
-    <div>
-        <label class="block text-sm font-medium text-gray-700">School name</label>
-        <input id="school_name" type="text" class="mt-1 block w-full px-3 py-2 border rounded-md">
-    </div>
-    <div>
-        <label class="block text-sm font-medium text-gray-700">Supervisor</label>
-        <input id="supervisor" type="text" class="mt-1 block w-full px-3 py-2 border rounded-md">
-    </div>
-</div>
+            <!-- School fields -->
+            <div id="schoolFields" class="hidden">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Department</label>
+                    <input id="department" type="text" class="mt-1 block w-full px-3 py-2 border rounded-md">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">School name</label>
+                    <input id="school_name" type="text" class="mt-1 block w-full px-3 py-2 border rounded-md">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Supervisor</label>
+                    <input id="supervisor" type="text" class="mt-1 block w-full px-3 py-2 border rounded-md">
+                </div>
+            </div>
 
             <div class="flex items-center justify-between space-x-3">
                 <div class="flex items-center space-x-2">
@@ -169,14 +169,20 @@
                     first_name: document.getElementById('first_name').value.trim() || null,
                     last_name: document.getElementById('last_name').value.trim() || null,
                     netId: document.getElementById('netId').value.trim() || null,
-                    grad_year: document.getElementById('grad_year').value || null,
+                    grad_year: (() => {
+                        const val = document.getElementById('grad_year').value.trim();
+                        const intVal = parseInt(val, 10);
+                        return (!isNaN(intVal) && val !== '') ? intVal : null;
+                    })(),
                     major: document.getElementById('major').value.trim() || null,
+                    // Collect selected category IDs
+                    categories: Array.from(document.querySelectorAll('#categoryCheckboxes input[name="categories"]:checked')).map(cb => parseInt(cb.value)),
+                    // Collect selected club IDs
+                    clubs: Array.from(document.querySelectorAll('#clubCheckboxes input[name="clubs"]:checked')).map(cb => parseInt(cb.value)),
                     club_name: document.getElementById('club_name').value.trim() || null,
                     club_url: document.getElementById('club_url').value.trim() || null,
                     contact_email: document.getElementById('contact_email').value.trim() || null,
                     yearFounded: document.getElementById('yearFounded').value ? Number(document.getElementById('yearFounded').value) : null,
-                    yearFounded: document.getElementById('yearFounded').value ? Number(document.getElementById('yearFounded').value) : null,
-                    yearFounded: document.getElementById('yearFounded').value || null,
                     department: document.getElementById('department').value.trim() || null,
                     name: document.getElementById('school_name').value.trim() || null,
                     supervisor: document.getElementById('supervisor').value.trim() || null
@@ -239,12 +245,20 @@
                 first_name: document.getElementById('first_name').value.trim() || null,
                 last_name: document.getElementById('last_name').value.trim() || null,
                 netId: document.getElementById('netId').value.trim() || null,
-                grad_year: document.getElementById('grad_year').value || null,
+                grad_year: (() => {
+                        const val = document.getElementById('grad_year').value.trim();
+                        const intVal = parseInt(val, 10);
+                        return (!isNaN(intVal) && val !== '') ? intVal : null;
+                    })(),
                 major: document.getElementById('major').value.trim() || null,
+                // Collect selected category IDs
+                categories: Array.from(document.querySelectorAll('#categoryCheckboxes input[name="categories"]:checked')).map(cb => parseInt(cb.value)),
+                // Collect selected club IDs
+                clubs: Array.from(document.querySelectorAll('#clubCheckboxes input[name="clubs"]:checked')).map(cb => parseInt(cb.value)),
                 club_name: document.getElementById('club_name').value.trim() || null,
                 club_url: document.getElementById('club_url').value.trim() || null,
                 contact_email: document.getElementById('contact_email').value.trim() || null,
-                yearFounded: document.getElementById('yearFounded').value || null,
+                yearFounded: document.getElementById('yearFounded').value ? Number(document.getElementById('yearFounded').value) : null,
                 department: document.getElementById('department').value.trim() || null,
                 name: document.getElementById('school_name').value.trim() || null,
                 supervisor: document.getElementById('supervisor').value.trim() || null
