@@ -16,7 +16,7 @@ const dbConfig = {
     host: 'localhost',
     port: 3306,
     user: 'root', // Update with your MySQL username
-    password: 'Iam@qu33r', // Update with your MySQL password
+    password: 'your password', // Update with your MySQL password
     database: 'dku_event_system',
 
     connectionLimit: 10,

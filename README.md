@@ -1,112 +1,91 @@
-# DKU Event Management System - MySQL Integration Guide
+# DKU Event Management System
 
 ## Overview
-This guide will help you set up the DKU Event Management System to connect to your localhost MySQL database on 127.0.0.1:3306.
 
-## Prerequisites
-- Node.js (v14 or higher)
-- MySQL Server running on localhost:3306
-- Database `dku_event_system` created with your schema
-- Your stored procedures already created
+The DKU Event Management System is a comprehensive platform designed to manage events, organizers, attendees, and clubs within the Duke Kunshan University ecosystem. It features a Node.js Express backend, a dynamic frontend, and integrates with a MySQL database for data storage and retrieval, utilizing stored procedures for efficient data operations.
 
-## Backend Setup
+## Getting Started
 
-### 1. Install Dependencies
-```bash
-cd /mnt/okcomputer/output
-npm install
-```
+Follow these steps to set up and run the DKU Event Management System locally.
 
-### 2. Configure Database Connection
-Edit `backend.js` and update the database configuration:
+### Prerequisites
 
-```javascript
-const dbConfig = {
-    host: '127.0.0.1',
-    port: 3306,
-    user: 'your_mysql_username',    // Change this
-    password: 'your_mysql_password', // Change this
-    database: 'dku_event_system'
-};
-```
+*   **Node.js**: v14 or higher
+*   **MySQL Server**: Running on `localhost:3306`
+*   **Database**: A MySQL database named `dku_event_system` with your defined schema and stored procedures already created.
 
-### 3. Test Database Connection
-```bash
-node test-connection.js
-```
+### 1. Backend Setup
 
-This will test your MySQL connection and verify that:
-- Database is accessible
-- Events table exists
-- Stored procedures are available
+1.  **Install Dependencies**: Navigate to the project root and install Node.js dependencies:
+    ```bash
+    npm install
+    ```
+2.  **Configure Database Connection**: Open `backend.js` and update the `dbConfig` with your MySQL credentials:
+    ```javascript
+    const dbConfig = {
+        host: '127.0.0.1',
+        port: 3306,
+        user: 'your_mysql_username',    // Update this
+        password: 'your_mysql_password', // Update this
+        database: 'dku_event_system'
+    };
+    ```
+3.  **Start the Server**:
+    ```bash
+    npm start
+    ```
+    You should see output similar to this:
+    ```
+    ✅ Database connected successfully
+    🚀 Server running on port 3000
+    📡 API endpoints available at http://localhost:3000/api
+    ```
 
-### 4. Start the Backend Server
-```bash
-npm start
-```
+### 2. Frontend Setup
 
-The backend server will start on port 3000. You should see:
-```
-✅ Database connected successfully
-🚀 Server running on port 3000
-📡 API endpoints available at http://localhost:3000/api
-```
+The frontend HTML files (`index.html`, `event-details.html`, `dashboard.html`, `signup.html`, `login.html`) are pre-configured to interact with the backend API. They automatically detect API availability and use real data from MySQL, falling back to mock data if the API is not accessible.
 
-## Frontend Setup
-
-### 1. Update HTML Files
-The frontend HTML files are already configured to use the API. The system will automatically:
-- Detect if the backend API is available
-- Use real data from MySQL if connected
-- Fall back to mock data if API is not available
-
-### 2. API Integration
-The frontend includes `api-client.js` which handles all API communication:
-- Automatic connection detection
-- Real-time filtering using stored procedures
-- Error handling and fallback to mock data
+No additional setup is typically required for the frontend. Just open `index.html` (or any other HTML file) in your browser after the backend server is running.
 
 ## API Endpoints
 
-### GET /api/events
-Returns all events with full details from the database.
+The backend provides the following API endpoints:
 
-### POST /api/events/filter
-Filters events using your `filter_events` stored procedure:
-```json
-{
-    "start_date": "2025-01-01",
-    "end_date": "2025-12-31",
-    "event_type": "on_campus",
-    "categories": ["Academic", "Career"],
-    "organizers": [],
-    "locations": ["Academic Building"]
-}
-```
+| Method | Endpoint                     | Description                                            |
+| :----- | :--------------------------- | :----------------------------------------------------- |
+| `GET`  | `/api/events`                | Retrieve all events with full details.                 |
+| `POST` | `/api/events/filter`         | Filter events based on criteria (uses `filter_events` stored procedure). |
+| `GET`  | `/api/events/:id`            | Retrieve a single event by ID.                         |
+| `GET`  | `/api/categories`            | Retrieve all available event categories.               |
+| `GET`  | `/api/locations`             | Retrieve all available event locations.                |
+| `GET`  | `/api/organizers`            | Retrieve all available organizers.                     |
+| `GET`  | `/api/organizers/:id`        | Retrieve details for a specific organizer.             |
+| `GET`  | `/api/organizers/:id/events` | Retrieve events organized by a specific organizer.     |
+| `POST` | `/api/clubs/join`            | Allow an attendee to join a club.                      |
+| `GET`  | `/api/clubs/check`           | Check if an attendee is a member of a club.            |
+| `GET`  | `/api/all-organizers`        | Retrieve all organizers with names for filtering.      |
+| `GET`  | `/api/users/:id`             | Retrieve basic profile information for a user.         |
+| `POST` | `/api/login`                 | User login (uses `fn_user_login` stored function).     |
+| `POST` | `/api/signup/attendee`       | Signup for a new attendee account (uses `sp_signup_attendee` stored procedure). |
+| `POST` | `/api/signup/club`           | Signup for a new club organizer account (uses `sp_signup_club` stored procedure). |
+| `POST` | `/api/signup/school`         | Signup for a new school organizer account (uses `sp_signup_school` stored procedure). |
+| `POST` | `/api/signup/student`        | Signup for a new student organizer account (uses `sp_signup_student_organizer` stored procedure). |
+| `POST` | `/api/save-preferences`      | Save user category and club preferences.               |
+| `GET`  | `/api/health`                | Health check endpoint to verify database connection.   |
 
-### GET /api/events/:id
-Returns a single event by ID.
+## Testing
 
-### GET /api/categories
-Returns all available categories.
+### 1. Verify Database Connection
 
-### GET /api/locations
-Returns all available locations.
-
-### GET /api/organizers
-Returns all available organizers.
-
-### GET /api/health
-Health check endpoint to verify database connection.
-
-## Testing Your Setup
-
-### 1. Test Database Connection
+Ensure your MySQL database is properly configured and accessible:
 ```bash
 node test-connection.js
 ```
 
 ### 2. Test API Endpoints
+
+Use `curl` or a tool like Postman to test the API:
+
 ```bash
 # Test health endpoint
 curl http://localhost:3000/api/health
@@ -114,137 +93,65 @@ curl http://localhost:3000/api/health
 # Test events endpoint
 curl http://localhost:3000/api/events
 
-# Test filter endpoint
+# Test filter endpoint (example)
 curl -X POST http://localhost:3000/api/events/filter \
   -H "Content-Type: application/json" \
   -d '{"event_type": "on_campus"}'
 ```
 
-### 3. Test Stored Procedures Directly
-Connect to MySQL and test your procedures:
+### 3. Test Stored Procedures Directly (MySQL Client)
+
+Connect to your MySQL database and execute stored procedures directly to verify their logic:
 
 ```sql
--- Test basic filter
+-- Example: Test basic event filter
 CALL filter_events(NULL, NULL, NULL, NULL, NULL, NULL);
 
--- Test with date range
-CALL filter_events('2025-01-01', '2025-12-31', NULL, NULL, NULL, NULL);
-
--- Test with event type
-CALL filter_events(NULL, NULL, 'online', NULL, NULL, NULL);
-
--- Test with categories
-CALL filter_events(NULL, NULL, NULL, JSON_ARRAY('Academic', 'Career'), NULL, NULL);
-
--- Test with locations
-CALL filter_events(NULL, NULL, NULL, NULL, NULL, JSON_ARRAY('Academic Building'));
-
--- Complex filter
-CALL filter_events('2025-01-01', '2025-11-30', 'on_campus', 
-                   JSON_ARRAY('Academic', 'Career'), NULL, 
-                   JSON_ARRAY('Academic Building'));
+-- Example: Test attendee signup
+CALL sp_signup_attendee('test@example.com', 'password123', 'Test', 'User', 'testnetid', 2026, 'CS', '[]', '[]', @p_error_message);
+SELECT @p_error_message;
 ```
 
 ## Troubleshooting
 
-### Database Connection Issues
-1. **Ensure MySQL is running:**
-   ```bash
-   mysql -u your_username -p
-   ```
-
-2. **Check database exists:**
-   ```sql
-   SHOW DATABASES;
-   USE dku_event_system;
-   SHOW TABLES;
-   ```
-
-3. **Verify stored procedures:**
-   ```sql
-   SHOW PROCEDURE STATUS WHERE Db = 'dku_event_system';
-   ```
-
-### Common Errors
-- **"Access denied"**: Check username/password in backend.js
-- **"Database not found"**: Ensure database name is correct
-- **"Procedure not found"**: Run the stored procedure creation scripts
-- **"Connection refused"**: Ensure MySQL is running on port 3306
-
-### Debug Mode
-Enable detailed logging in backend.js:
-```javascript
-// Add this to backend.js for more detailed error messages
-console.log('Database config:', dbConfig);
-```
+*   **Database Connection Issues**:
+    *   Verify MySQL server is running.
+    *   Check `backend.js` for correct `dbConfig` (host, port, user, password, database name).
+    *   Ensure the `dku_event_system` database and all required tables/procedures exist.
+*   **"Graduation year is required" error**:
+    *   This error originates from your MySQL database. You need to inspect the `sp_signup_attendee` stored procedure and the `grad_year` column in the `Attendees` table. Ensure the column allows `NULL` values if `grad_year` is intended to be optional, or adjust the stored procedure's validation logic.
+*   **"Procedure not found"**: Ensure your stored procedures are created in the `dku_event_system` database.
 
 ## Development Tips
 
-### Using Mock Data
-If you want to develop without the database, the system automatically falls back to mock data when the API is not available.
-
-### Adding New Features
-1. Backend: Add new API endpoints in backend.js
-2. Frontend: Add corresponding functions in main-api.js
-3. Database: Update stored procedures if needed
-
-### Database Schema Updates
-If you modify the database schema:
-1. Update the queries in backend.js
-2. Update the data transformation in main-api.js
-3. Test with test-connection.js
-
-## Production Deployment
-
-### Environment Variables
-For production, use environment variables:
-```bash
-export DB_HOST=127.0.0.1
-export DB_PORT=3306
-export DB_USER=your_username
-export DB_PASSWORD=your_password
-export DB_NAME=dku_event_system
-```
-
-### Security Considerations
-1. Use strong database passwords
-2. Implement user authentication
-3. Add input validation
-4. Use HTTPS in production
-5. Configure CORS properly
-
-## Support
-If you encounter issues:
-1. Check the console logs in your browser
-2. Check the backend server logs
-3. Verify database connection with test-connection.js
-4. Test stored procedures directly in MySQL
+*   The system automatically falls back to mock data if the backend API is unreachable, allowing frontend development independently.
+*   For detailed logging, add `console.log('Database config:', dbConfig);` in `backend.js`.
+*   Remember to update relevant queries and data transformations in `backend.js` if you modify your database schema.
 
 ## File Structure
+
 ```
-/mnt/okcomputer/output/
+.
 ├── index.html              # Main event listing page
 ├── event-details.html      # Event details page
 ├── dashboard.html          # User dashboard
-├── main-api.js            # Frontend JavaScript with API integration
-├── api-client.js          # API client library
-├── backend.js             # Backend server (Node.js + Express)
-├── test-connection.js     # Database connection test
-├── package.json           # Node.js dependencies
-├── resources/             # Images and media
-│   ├── hero-campus-events.jpg
-│   ├── dashboard-abstract.jpg
-│   └── club-activities.jpg
-├── design.md              # Design documentation
-├── interaction.md         # Interaction design
-└── outline.md             # Project outline
+├── signup.html             # User signup page
+├── login.html              # User login page
+├── main-api.js             # Frontend JavaScript with API integration
+├── api-client.js           # API client library
+├── auth.js                 # Authentication helper functions
+├── backend.js              # Backend server (Node.js + Express)
+├── test-connection.js      # Database connection test
+├── package.json            # Node.js dependencies
+├── README.md               # Project documentation
+└── resources/              # Images and media
+    ├── hero-campus-events.jpg
+    ├── dashboard-abstract.jpg
+    └── club-activities.jpg
 ```
 
 ## Next Steps
-1. Set up your MySQL database with the provided schema
-2. Create the stored procedures
-3. Configure the backend connection
-4. Test the complete system
-5. Deploy to your production environment
 
-The system is now ready to connect to your localhost MySQL database and use your stored procedures for filtering events!
+1.  **Finalize MySQL Setup**: Ensure your `dku_event_system` database, schema, and all stored procedures (especially `sp_signup_attendee` and `ValidateGradYear`) are correctly configured to handle graduation year data as intended.
+2.  **Test Thoroughly**: Verify all API endpoints and signup flows.
+3.  **Deploy**: Prepare for deployment to your production environment.
