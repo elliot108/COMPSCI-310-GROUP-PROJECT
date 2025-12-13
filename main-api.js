@@ -1196,3 +1196,208 @@ window.clearAllFilters = clearAllFilters;
 window.showEventDetails = showEventDetails;
 
 console.log('DKU Event Management System - JavaScript loaded successfully');
+
+// Initialize SQL viewer (call from initializeApp or DOMContentLoaded)
+function initializeSQLViewer() {
+    const showBtn = document.getElementById('showSQLBtn');
+    const modal = document.getElementById('sqlModal');
+    const closeBtn = document.getElementById('closeSqlBtn');
+    const sqlContentEl = document.getElementById('sqlContent');
+    const copyBtn = document.getElementById('copySqlBtn');
+    const downloadBtn = document.getElementById('downloadSqlBtn');
+
+    if (!showBtn || !modal || !sqlContentEl) return;
+
+    // In-memory simulation of affected tables (UI-only demo)
+    const simulatedDB = {
+        club_categories: [], // { user_id, club_id, created_at }
+        user_organizer_notifications: [] // { user_id, organizer_id, notify, created_at }
+    };
+
+    function extractSnippet(content, keyword) {
+        const idx = content.toLowerCase().indexOf(keyword.toLowerCase());
+        if (idx === -1) return '';
+        const start = Math.max(0, idx - 120);
+        const end = Math.min(content.length, idx + 240);
+        return content.slice(start, end).trim();
+    }
+
+    function renderSimulatedTables(container) {
+        container.querySelectorAll('.sim-table').forEach(el => el.remove());
+
+        const clubTable = document.createElement('div');
+        clubTable.className = 'sim-table p-3';
+        clubTable.innerHTML = `
+            <h4 class="font-medium mb-2">Simulated club_categories rows (${simulatedDB.club_categories.length})</h4>
+            <table class="w-full text-xs border-collapse">
+                <thead><tr><th class="text-left">user_id</th><th class="text-left">club_id</th><th class="text-left">created_at</th></tr></thead>
+                <tbody>
+                    ${simulatedDB.club_categories.map(r => `<tr><td>${r.user_id}</td><td>${r.club_id}</td><td>${r.created_at}</td></tr>`).join('') || '<tr><td colspan="3" class="text-gray-500">No rows</td></tr>'}
+                </tbody>
+            </table>
+        `;
+
+        const notifTable = document.createElement('div');
+        notifTable.className = 'sim-table p-3 mt-4';
+        notifTable.innerHTML = `
+            <h4 class="font-medium mb-2">Simulated user_organizer_notifications rows (${simulatedDB.user_organizer_notifications.length})</h4>
+            <table class="w-full text-xs border-collapse">
+                <thead><tr><th class="text-left">user_id</th><th class="text-left">organizer_id</th><th class="text-left">notify</th><th class="text-left">created_at</th></tr></thead>
+                <tbody>
+                    ${simulatedDB.user_organizer_notifications.map(r => `<tr><td>${r.user_id}</td><td>${r.organizer_id}</td><td>${r.notify}</td><td>${r.created_at}</td></tr>`).join('') || '<tr><td colspan="4" class="text-gray-500">No rows</td></tr>'}
+                </tbody>
+            </table>
+        `;
+
+        container.appendChild(clubTable);
+        container.appendChild(notifTable);
+    }
+
+    async function openModal() {
+        showLoadingState();
+        const data = await window.apiClient?.getUserPreferenceSQL?.(); // safe call
+        hideLoadingState();
+
+        if (!data) {
+            showNotification('Failed to load SQL file', 'error');
+            return;
+        }
+
+        // show raw SQL
+        sqlContentEl.textContent = data.content || '';
+
+        // create / reuse demo controls area
+        let demoContainer = modal.querySelector('#sqlDemoContainer');
+        if (!demoContainer) {
+            demoContainer = document.createElement('div');
+            demoContainer.id = 'sqlDemoContainer';
+            demoContainer.className = 'p-4 border-t bg-gray-50';
+            demoContainer.innerHTML = `
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div id="clubDemo" class="p-3 bg-white rounded shadow-sm">
+                        <h3 class="font-semibold mb-2">Demo: club_categories (user affiliation)</h3>
+                        <div class="mb-2 text-sm text-gray-600" id="clubSnippet"></div>
+                        <div class="flex items-center gap-2 mb-2">
+                            <input id="demoUserId" class="border px-2 py-1 text-sm w-20" placeholder="user_id" value="101">
+                            <input id="demoClubId" class="border px-2 py-1 text-sm w-28" placeholder="club_id" value="10">
+                            <button id="runClubDemo" class="px-3 py-1 bg-blue-500 text-white rounded text-sm">Simulate Insert</button>
+                            <button id="showClubSQL" class="px-2 py-1 bg-gray-100 rounded text-sm">Show SQL</button>
+                        </div>
+                        <div class="text-xs text-gray-500">Simulates adding a club affiliation row when a user registers.</div>
+                    </div>
+
+                    <div id="notifDemo" class="p-3 bg-white rounded shadow-sm">
+                        <h3 class="font-semibold mb-2">Demo: user_organizer_notifications (notify prefs)</h3>
+                        <div class="mb-2 text-sm text-gray-600" id="notifSnippet"></div>
+                        <div class="flex items-center gap-2 mb-2">
+                            <input id="demoUserId2" class="border px-2 py-1 text-sm w-20" placeholder="user_id" value="101">
+                            <input id="demoOrganizerId" class="border px-2 py-1 text-sm w-28" placeholder="organizer_id" value="5">
+                            <select id="demoNotify" class="border px-2 py-1 text-sm">
+                                <option value="YES">YES</option>
+                                <option value="NO">NO</option>
+                            </select>
+                            <button id="runNotifDemo" class="px-3 py-1 bg-blue-500 text-white rounded text-sm">Simulate Insert</button>
+                            <button id="showNotifSQL" class="px-2 py-1 bg-gray-100 rounded text-sm">Show SQL</button>
+                        </div>
+                        <div class="text-xs text-gray-500">Simulates storing whether a user wants notifications for an organizer's events.</div>
+                    </div>
+                </div>
+
+                <div id="simTablesWrapper" class="mt-4"></div>
+                <div class="mt-3 text-xs text-yellow-600">Note: This is a UI-only demonstration — no database is modified.</div>
+            `;
+            const modalBody = modal.querySelector('.bg-white.rounded-lg .p-4') || modal.querySelector('.bg-white.rounded-lg');
+            if (modalBody) modalBody.appendChild(demoContainer);
+        }
+
+        // populate snippet texts
+        const content = data.content || '';
+        demoContainer.querySelector('#clubSnippet').textContent = extractSnippet(content, 'club_categories') || 'No club_categories snippet found in SQL file.';
+        demoContainer.querySelector('#notifSnippet').textContent = extractSnippet(content, 'organizer') || 'No organizer/notifications snippet found in SQL file.';
+
+        // wire buttons
+        demoContainer.querySelector('#runClubDemo').onclick = () => {
+            const uid = demoContainer.querySelector('#demoUserId').value || 'NULL';
+            const cid = demoContainer.querySelector('#demoClubId').value || 'NULL';
+            const sql = `INSERT INTO club_categories (user_id, club_id, created_at) VALUES (${uid}, ${cid}, NOW());`;
+            // simulate insert
+            simulatedDB.club_categories.push({ user_id: uid, club_id: cid, created_at: new Date().toISOString() });
+            showNotification('Simulated INSERT into club_categories', 'success');
+            // show the SQL to the user briefly
+            showNotification(sql, 'info');
+            renderSimulatedTables(demoContainer.querySelector('#simTablesWrapper'));
+        };
+
+        demoContainer.querySelector('#runNotifDemo').onclick = () => {
+            const uid = demoContainer.querySelector('#demoUserId2').value || 'NULL';
+            const oid = demoContainer.querySelector('#demoOrganizerId').value || 'NULL';
+            const notify = demoContainer.querySelector('#demoNotify').value || 'NO';
+            const sql = `INSERT INTO user_organizer_notifications (user_id, organizer_id, notify, created_at) VALUES (${uid}, ${oid}, '${notify}', NOW());`;
+            simulatedDB.user_organizer_notifications.push({ user_id: uid, organizer_id: oid, notify, created_at: new Date().toISOString() });
+            showNotification('Simulated INSERT into user_organizer_notifications', 'success');
+            showNotification(sql, 'info');
+            renderSimulatedTables(demoContainer.querySelector('#simTablesWrapper'));
+        };
+
+        demoContainer.querySelector('#showClubSQL').onclick = () => {
+            const s = extractSnippet(content, 'club_categories') || 'No club_categories SQL found in file.';
+            sqlContentEl.textContent = s;
+        };
+
+        demoContainer.querySelector('#showNotifSQL').onclick = () => {
+            const s = extractSnippet(content, 'organizer') || 'No organizer/notif SQL found in file.';
+            sqlContentEl.textContent = s;
+        };
+
+        // initial render of simulated tables
+        renderSimulatedTables(demoContainer.querySelector('#simTablesWrapper'));
+
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
+
+    function closeModal() {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+
+    showBtn.addEventListener('click', openModal);
+    closeBtn && closeBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+    });
+
+    copyBtn && copyBtn.addEventListener('click', async () => {
+        try {
+            await navigator.clipboard.writeText(sqlContentEl.textContent);
+            showNotification('SQL copied to clipboard', 'success');
+        } catch (err) {
+            showNotification('Copy failed', 'error');
+        }
+    });
+
+    downloadBtn && downloadBtn.addEventListener('click', () => {
+        const blob = new Blob([sqlContentEl.textContent], { type: 'text/sql' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'user_PReference.sql';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+    });
+}
+
+// call during app init (if you already have initializeApp, add this call there)
+document.addEventListener('DOMContentLoaded', () => {
+    if (typeof initializeSQLViewer === 'function') initializeSQLViewer();
+});
+
+// Export functions for global access
+window.scrollToEvents = scrollToEvents;
+window.showCreateEvent = showCreateEvent;
+window.clearAllFilters = clearAllFilters;
+window.showEventDetails = showEventDetails;
+
+console.log('DKU Event Management System - JavaScript loaded successfully');
